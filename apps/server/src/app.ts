@@ -1,9 +1,9 @@
-import Fastify from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import { gameManager } from './game/gameManager.js';
 import { roomManager } from './room/roomManager.js';
-import { loadDictionary, isDictionaryAvailable, isDictionaryLoaded, isDictionaryLoading } from './dictionary/loader.js';
+import { loadDictionary, isDictionaryLoaded, isDictionaryLoading } from './dictionary/loader.js';
 import { resolveSessionId, updateSession } from './session/sessionStore.js';
 
 const SESSION_COOKIE = 'marioggle_session';
@@ -20,9 +20,7 @@ function getCorsOrigins(): string[] | boolean {
   return raw.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
-export async function buildApp() {
-  const app = Fastify({ logger: true });
-
+export async function registerRoutes(app: FastifyInstance) {
   // Accept empty JSON bodies (e.g. POST /api/session with Content-Type but no payload)
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
     try {
@@ -60,19 +58,6 @@ export async function buildApp() {
   function attachSessionHeader(reply: { header: (k: string, v: string) => void }, sessionId: string) {
     reply.header('X-Session-Id', sessionId);
   }
-
-  app.get('/api/health', async () => ({
-    ok: true,
-    dictionary: isDictionaryLoaded(),
-    dictionaryLoading: isDictionaryLoading(),
-    activeGames: gameManager.getActiveGameCount(),
-  }));
-
-  app.get('/', async () => ({
-    ok: true,
-    service: 'marioggle-api',
-    health: '/api/health',
-  }));
 
   app.get('/api/maintenance', async () => ({ maintenance: MAINTENANCE }));
 
@@ -202,6 +187,4 @@ export async function buildApp() {
     if (!room) return reply.status(404).send({ code: 'ROOM_NOT_FOUND' });
     return roomManager.toResponse(room, getPublicUrl());
   });
-
-  return app;
 }

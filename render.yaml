@@ -1,5 +1,4 @@
 # Render — API backend (free tier)
-# Frontend is hosted on GitHub Pages; this service runs solo + multiplayer logic.
 services:
   - type: web
     name: marioggle-api
@@ -7,8 +6,8 @@ services:
     plan: free
     region: singapore
     buildCommand: npm install --include=dev && npm run build:dictionary && npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/server
-    startCommand: npm start
-    healthCheckPath: /api/health
+    startCommand: node apps/server/dist/index.js
+    healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production

@@ -1,7 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import { gameManager } from '../game/gameManager.js';
 import { roomManager } from '../room/roomManager.js';
-import { loadDictionary } from '../dictionary/loader.js';
+import { loadDictionary, isDictionaryLoaded } from '../dictionary/loader.js';
 import { canStartRoom, connectedPlayers } from '../room/roomHelpers.js';
 
 const socketSessions = new Map<string, string>();
@@ -66,6 +66,13 @@ export function attachSocketHandlers(io: Server) {
       }
 
       try {
+        if (!isDictionaryLoaded()) {
+          socket.emit('error', {
+            code: 'DICTIONARY_LOADING',
+            message: 'Dictionary still loading. Retry in a few seconds.',
+          });
+          return;
+        }
         const dictionary = loadDictionary();
         const players = connectedPlayers(room).map((p) => ({
           sessionId: p.sessionId,

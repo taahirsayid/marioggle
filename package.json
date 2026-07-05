@@ -5,6 +5,9 @@
     "packages/*",
     "apps/*"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/web && npm run build -w @marioggle/server",
     "build:web": "npm run build -w @marioggle/web",

@@ -1,7 +1,4 @@
-import { buildApp } from './app.js';
-import { attachSocketHandlers } from './ws/socketHandler.js';
-import { startDictionaryLoad } from './dictionary/loader.js';
-import { Server } from 'socket.io';
+import type { FastifyInstance } from 'fastify';
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -12,11 +9,39 @@ function getCorsOrigins(): string[] | boolean {
 }
 
 async function main() {
-  const app = await buildApp();
+  const { default: Fastify } = await import('fastify');
+  const app = Fastify({ logger: true }) as FastifyInstance;
 
-  // Listen immediately so Render health checks pass within 5 seconds.
+  let routesReady = false;
+
+  app.get('/api/health', async () => {
+    if (!routesReady) {
+      return { ok: true, status: 'starting' };
+    }
+    const { isDictionaryLoaded, isDictionaryLoading } = await import('./dictionary/loader.js');
+    const { gameManager } = await import('./game/gameManager.js');
+    return {
+      ok: true,
+      status: 'ready',
+      dictionary: isDictionaryLoaded(),
+      dictionaryLoading: isDictionaryLoading(),
+      activeGames: gameManager.getActiveGameCount(),
+    };
+  });
+
+  app.get('/', async () => ({ ok: true, service: 'marioggle-api', health: '/api/health' }));
+
   await app.listen({ port: PORT, host: '0.0.0.0' });
+  console.log(`Health endpoint live on 0.0.0.0:${PORT}`);
 
+  const { registerRoutes } = await import('./app.js');
+  await registerRoutes(app);
+  routesReady = true;
+
+  const { startDictionaryLoad } = await import('./dictionary/loader.js');
+  startDictionaryLoad();
+
+  const { Server } = await import('socket.io');
   const io = new Server(app.server, {
     cors: {
       origin: getCorsOrigins(),
@@ -25,14 +50,13 @@ async function main() {
     path: '/socket.io',
   });
 
+  const { attachSocketHandlers } = await import('./ws/socketHandler.js');
   attachSocketHandlers(io);
-  console.log(`Marioggle server listening on port ${PORT}`);
 
-  // Load WordNet trie in background (can take several seconds on free tier).
-  startDictionaryLoad();
+  console.log('Marioggle API fully initialized');
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error('Fatal startup error:', err);
   process.exit(1);
 });

@@ -1,7 +1,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TrieDictionary } from '@marioggle/engine';
+import type { WordDictionary } from '@marioggle/engine';
+import { SetDictionary } from '@marioggle/engine';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -14,7 +15,7 @@ const DEV_WORDS = [
   'slow', 'sea', 'ease', 'east', 'seat', 'pen', 'pet', 'step', 'rent', 'term',
 ];
 
-let dictionary: TrieDictionary | null = null;
+let dictionary: WordDictionary | null = null;
 let loading = false;
 
 export function isDictionaryLoaded(): boolean {
@@ -32,10 +33,12 @@ function dictionaryPaths(): string[] {
     join(__dirname, '../data/dictionary.json'),
     join(process.cwd(), 'data/dictionary.json'),
     join(process.cwd(), 'apps/server/data/dictionary.json'),
+    join(__dirname, '../data/dictionary.fallback.json'),
+    join(process.cwd(), 'apps/server/data/dictionary.fallback.json'),
   ];
 }
 
-export function loadDictionary(): TrieDictionary {
+export function loadDictionary(): WordDictionary {
   if (dictionary) return dictionary;
 
   for (const p of dictionaryPaths()) {
@@ -45,7 +48,7 @@ export function loadDictionary(): TrieDictionary {
         offensive?: string[];
         source?: string;
       };
-      dictionary = TrieDictionary.fromWordList(data.words, data.offensive ?? []);
+      dictionary = SetDictionary.fromWordList(data.words, data.offensive ?? []);
       console.log(`Dictionary loaded: ${data.words.length} words from ${p} (${data.source ?? 'file'})`);
       return dictionary;
     }
@@ -56,16 +59,17 @@ export function loadDictionary(): TrieDictionary {
     ? readFileSync(offensivePath, 'utf-8').split('\n').map((l) => l.trim()).filter(Boolean)
     : [];
 
-  dictionary = TrieDictionary.fromWordList(DEV_WORDS, offensive);
+  dictionary = SetDictionary.fromWordList(DEV_WORDS, offensive);
   console.warn('Using built-in dev dictionary. Run npm run build:dictionary for WordNet list.');
   return dictionary;
 }
 
-/** Load dictionary after the HTTP server is listening (avoids Render health-check timeout). */
+/** Load dictionary after the HTTP server is listening (non-blocking). */
 export function startDictionaryLoad(): void {
   if (dictionary || loading) return;
   loading = true;
-  setImmediate(() => {
+  // Defer to next tick so health checks respond first
+  setTimeout(() => {
     try {
       loadDictionary();
     } catch (err) {
@@ -73,7 +77,7 @@ export function startDictionaryLoad(): void {
     } finally {
       loading = false;
     }
-  });
+  }, 100);
 }
 
 export function isDictionaryLoading(): boolean {

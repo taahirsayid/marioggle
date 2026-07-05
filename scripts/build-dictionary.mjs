@@ -102,6 +102,7 @@ async function main() {
   const payload = JSON.stringify({ words: [...words].sort(), offensive, source: 'wordnet' });
   writeFileSync(OUT_FILE, payload);
   writeFileSync(SERVER_OUT, payload);
+  writeFileSync(join(process.cwd(), 'apps/server/data/dictionary.fallback.json'), payload);
   console.log(`Wrote ${words.size} words to ${OUT_FILE}`);
 }
 

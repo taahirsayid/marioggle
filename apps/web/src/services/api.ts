@@ -36,11 +36,20 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    body,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      body,
+      headers,
+    });
+  } catch {
+    throw new Error(
+      API_BASE
+        ? `Cannot reach game server (${API_BASE}). Render free tier may be waking up — wait 30 seconds and try again.`
+        : 'Game server URL is not configured. Set VITE_API_URL in GitHub Actions secrets.',
+    );
+  }
 
   const newSession = res.headers.get('X-Session-Id');
   if (newSession) setSessionId(newSession);
@@ -65,10 +74,8 @@ export async function wakeServer(maxAttempts = 12): Promise<boolean> {
       if (res.ok) {
         const data = (await res.json()) as { dictionary?: boolean; dictionaryLoading?: boolean };
         if (data.dictionary) return true;
-        if (!data.dictionaryLoading && !data.dictionary) {
-          // Server up but dictionary failed — still allow session/room flows to surface errors
-          return true;
-        }
+        // Server is up (status starting or ready) — routes work; dictionary may still load
+        if (data.status === 'starting' || data.status === 'ready' || data.ok) return true;
       }
     } catch {
       // server waking or spinning up

@@ -8,10 +8,10 @@ import {
   RECONNECT_MS,
   type Difficulty,
 } from '@marioggle/shared';
+import type { WordDictionary } from '@marioggle/engine';
 import {
   generateQualifiedGrid,
   submitWord,
-  TrieDictionary,
   type SolutionWord,
 } from '@marioggle/engine';
 
@@ -50,13 +50,13 @@ type CreateSoloInput = {
   displayName: string;
   difficulty: Difficulty;
   durationSeconds: number;
-  dictionary: TrieDictionary;
+  dictionary: WordDictionary;
 };
 
 type CreateMultiplayerInput = {
   hostSessionId: string;
   durationSeconds: number;
-  dictionary: TrieDictionary;
+  dictionary: WordDictionary;
   players: { sessionId: string; displayName: string; visualId: number }[];
 };
 
@@ -263,7 +263,7 @@ export class GameManager {
     this.timers.set(gameId, list);
   }
 
-  private scheduleComputerWords(game: ActiveGame, dictionary: TrieDictionary) {
+  private scheduleComputerWords(game: ActiveGame, dictionary: WordDictionary) {
     const computer = [...game.participants.values()].find((p) => p.role === 'computer');
     if (!computer || !computer.difficulty) return;
 
@@ -315,7 +315,7 @@ export class GameManager {
     sessionId: string,
     path: number[],
     idempotencyKey: string,
-    dictionary: TrieDictionary,
+    dictionary: WordDictionary,
   ) {
     const game = this.games.get(gameId);
     if (!game) throw new Error('NOT_FOUND');

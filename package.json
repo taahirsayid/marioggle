@@ -10,7 +10,8 @@
     "build:web": "npm run build -w @marioggle/web",
     "dev": "concurrently \"npm run dev -w @marioggle/server\" \"npm run dev -w @marioggle/web\"",
     "test": "npm run test -w @marioggle/engine && npm run test -w @marioggle/shared",
-    "build:dictionary": "tsx scripts/build-dictionary.ts"
+    "build:dictionary": "tsx scripts/build-dictionary.ts",
+    "start": "npm run start -w @marioggle/server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

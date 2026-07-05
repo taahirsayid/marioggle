@@ -7,7 +7,7 @@ services:
     plan: free
     region: singapore
     buildCommand: npm install && npm run build:dictionary && npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/server
-    startCommand: npm run start -w @marioggle/server
+    startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV

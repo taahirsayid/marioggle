@@ -53,12 +53,31 @@ type CreateSoloInput = {
   dictionary: TrieDictionary;
 };
 
+type CreateMultiplayerInput = {
+  hostSessionId: string;
+  durationSeconds: number;
+  dictionary: TrieDictionary;
+  players: { sessionId: string; displayName: string; visualId: number }[];
+};
+
+export type GameBroadcast = (gameId: string, event: string, payload: unknown, sessionId?: string) => void;
+
 const VISUAL_COLORS = [1, 2, 3, 4, 5, 6];
 
 export class GameManager {
   private games = new Map<string, ActiveGame>();
+  private roomToGame = new Map<string, string>();
   private activeCount = 0;
   private timers = new Map<string, ReturnType<typeof setTimeout>[]>();
+  private broadcast: GameBroadcast = () => {};
+
+  setBroadcast(fn: GameBroadcast) {
+    this.broadcast = fn;
+  }
+
+  getGameIdForRoom(roomId: string): string | undefined {
+    return this.roomToGame.get(roomId);
+  }
 
   getActiveGameCount(): number {
     return this.activeCount;
@@ -128,6 +147,56 @@ export class GameManager {
     return game;
   }
 
+  createMultiplayerGame(roomId: string, input: CreateMultiplayerInput): ActiveGame {
+    if (!this.canStartGame()) {
+      throw new Error('CAPACITY_FULL');
+    }
+
+    const seed = Math.floor(Math.random() * 1_000_000_000);
+    const { tiles, solutions, seed: gridSeed } = generateQualifiedGrid(seed, input.dictionary);
+    const gameId = randomUUID();
+    const now = Date.now();
+
+    const participants = new Map<string, Participant>();
+    for (const p of input.players) {
+      participants.set(p.sessionId, {
+        sessionId: p.sessionId,
+        displayName: p.displayName,
+        role: 'human',
+        score: 0,
+        foundWords: new Set(),
+        connectionStatus: 'connected',
+        visualId: p.visualId,
+      });
+    }
+
+    const game: ActiveGame = {
+      id: gameId,
+      mode: 'multiplayer',
+      status: 'countdown',
+      grid: tiles,
+      solutions,
+      seed: gridSeed,
+      durationSeconds: input.durationSeconds || DEFAULT_DURATION_SECONDS,
+      countdownEndsAt: now + COUNTDOWN_MS,
+      activeEndsAt: null,
+      participants,
+      hostSessionId: input.hostSessionId,
+      idempotency: new Map(),
+      suddenDeathRound: 0,
+      pausedAt: null,
+      pauseOffsetMs: 0,
+      computerSchedule: [],
+    };
+
+    this.games.set(gameId, game);
+    this.roomToGame.set(roomId, gameId);
+    this.activeCount++;
+    this.scheduleCountdown(gameId);
+    this.emitGameState(gameId);
+    return game;
+  }
+
   getGame(gameId: string): ActiveGame | undefined {
     return this.games.get(gameId);
   }
@@ -144,8 +213,15 @@ export class GameManager {
     game.activeEndsAt = Date.now() + game.durationSeconds * 1000;
     game.countdownEndsAt = null;
 
+    this.broadcast(gameId, 'round_started', {
+      activeEndsAt: game.activeEndsAt,
+      serverNow: Date.now(),
+      grid: game.grid,
+    });
+
     const t = setTimeout(() => this.endRound(gameId), game.durationSeconds * 1000);
     this.addTimer(gameId, t);
+    this.emitGameState(gameId);
   }
 
   private endRound(gameId: string) {
@@ -155,6 +231,30 @@ export class GameManager {
     game.activeEndsAt = Date.now();
     this.clearComputerSchedule(game);
     this.activeCount = Math.max(0, this.activeCount - 1);
+
+    const rankings = [...game.participants.values()]
+      .filter((p) => p.role === 'human')
+      .map((p) => ({
+        sessionId: p.sessionId,
+        displayName: p.displayName,
+        score: p.score,
+        wordCount: p.foundWords.size,
+        words: [...p.foundWords],
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    this.broadcast(gameId, 'round_ended', { rankings });
+    this.broadcast(gameId, 'results_ready', { gameId });
+  }
+
+  emitGameState(gameId: string) {
+    const game = this.games.get(gameId);
+    if (!game) return;
+    for (const [sessionId] of game.participants) {
+      if (game.participants.get(sessionId)?.role === 'human') {
+        this.broadcast(gameId, 'game_state', this.toClientState(game, sessionId), sessionId);
+      }
+    }
   }
 
   private addTimer(gameId: string, t: ReturnType<typeof setTimeout>) {
@@ -244,22 +344,46 @@ export class GameManager {
     }
     participant.score = result.totalScore;
     game.idempotency.set(idempotencyKey, result);
+
+    this.broadcast(gameId, 'word_result', {
+      sessionId,
+      ...result,
+    }, sessionId);
+
     return result;
   }
 
   toClientState(game: ActiveGame, sessionId: string) {
     const human = game.participants.get(sessionId);
     const now = Date.now();
+    const showGrid = game.status !== 'countdown';
     return {
       gameId: game.id,
+      mode: game.mode,
       status: game.status,
-      grid: game.status === 'countdown' ? [] : game.grid,
+      grid: showGrid ? game.grid : [],
       score: human?.score ?? 0,
       activeEndsAt: game.activeEndsAt,
       countdownEndsAt: game.countdownEndsAt,
       serverNow: now,
       durationSeconds: game.durationSeconds,
+      hostSessionId: game.hostSessionId,
     };
+  }
+
+  getResults(gameId: string) {
+    const game = this.games.get(gameId);
+    if (!game || game.status !== 'results') return null;
+    return [...game.participants.values()]
+      .filter((p) => p.role === 'human')
+      .map((p) => ({
+        sessionId: p.sessionId,
+        displayName: p.displayName,
+        score: p.score,
+        wordCount: p.foundWords.size,
+        words: [...p.foundWords].sort(),
+      }))
+      .sort((a, b) => b.score - a.score);
   }
 }
 

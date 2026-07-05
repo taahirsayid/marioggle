@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
+import { ApiStatusBanner } from '../components/ApiStatusBanner';
 
 export function HomePage() {
   return (
     <div className="page">
       <h1 className="page-title">Marioggle</h1>
       <p className="page-subtitle">Find words. Score points. Beat the clock!</p>
+      <ApiStatusBanner />
       <div className="stack">
         <Link to="/solo">
           <button type="button" className="btn-primary" style={{ width: '100%' }}>

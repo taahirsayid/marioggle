@@ -173,6 +173,14 @@ select {
   50% { opacity: 0.7; }
 }
 
+.player-badge { margin-right: 0.5rem; }
+.player-blue { color: #4fc3f7; }
+.player-green { color: #66bb6a; }
+.player-yellow { color: #ffd166; }
+.player-orange { color: #ff9800; }
+.player-purple { color: #b39ddb; }
+.player-pink { color: #f48fb1; }
+
 @media (orientation: landscape) and (max-height: 500px) {
   .page {
     max-width: 100%;

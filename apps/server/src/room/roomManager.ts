@@ -27,6 +27,7 @@ export type Room = {
   lastActivityAt: number;
   expiresAt: number;
   gameStarted: boolean;
+  gameId: string | null;
 };
 
 const offensiveTerms = new Set(['badword']);
@@ -81,6 +82,7 @@ export class RoomManager {
       lastActivityAt: now,
       expiresAt: now + ROOM_EXPIRY_MS,
       gameStarted: false,
+      gameId: null,
     };
 
     room.players.set(input.sessionId, {
@@ -161,14 +163,30 @@ export class RoomManager {
     return this.rooms.get(roomId);
   }
 
+  getRoomByCode(code: string): Room | undefined {
+    const id = this.codeIndex.get(code);
+    return id ? this.rooms.get(id) : undefined;
+  }
+
+  markGameStarted(roomId: string, gameId: string): void {
+    const room = this.rooms.get(roomId);
+    if (!room) return;
+    room.gameStarted = true;
+    room.gameId = gameId;
+    room.lastActivityAt = Date.now();
+  }
+
   toResponse(room: Room, baseUrl: string) {
+    const invitePath = `/marioggle/join/${room.inviteToken}`;
     return {
       roomId: room.id,
       code: room.code,
-      inviteUrl: `${baseUrl}/join/${room.inviteToken}`,
+      inviteUrl: baseUrl.startsWith('http') ? `${baseUrl.replace(/\/$/, '')}${invitePath}` : invitePath,
       maxPlayers: room.maxPlayers,
       durationSeconds: room.durationSeconds,
       hostSessionId: room.hostSessionId,
+      gameStarted: room.gameStarted,
+      gameId: room.gameId,
       players: [...room.players.values()].map((p) => ({
         sessionId: p.sessionId,
         displayName: p.displayName,

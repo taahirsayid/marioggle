@@ -1349,7 +1349,7 @@ Each BRULE is enforced by the implementation sections referenced above:
 
 | # | Decision | Approved outcome |
 |---|----------|------------------|
-| 1 | Dictionary source | **SCOWL** (not Oxford). WordNet rejected; SCOWL is fit-for-purpose and free. |
+| 1 | Dictionary source | **WordNet 3.1** (via `wordnet-db` npm package). SCOWL replaced due to deploy reliability. |
 | 2 | Default multiplayer duration | **180 seconds** |
 | 3 | Host reconnection after transfer | **Does not auto-regain host** |
 | 4 | Non-tied players during sudden death | **Wait on results screen** with status message |

@@ -5,43 +5,51 @@ import { randomUUID } from 'node:crypto';
 import { gameManager } from './game/gameManager.js';
 import { roomManager } from './room/roomManager.js';
 import { loadDictionary, isDictionaryAvailable } from './dictionary/loader.js';
+import { resolveSessionId, updateSession } from './session/sessionStore.js';
 
 const SESSION_COOKIE = 'marioggle_session';
+const SESSION_HEADER = 'x-session-id';
 const MAINTENANCE = process.env.MAINTENANCE_MODE === 'true';
 
-const sessions = new Map<string, { displayName?: string; createdAt: number }>();
+function getPublicUrl(): string {
+  return process.env.PUBLIC_URL ?? 'https://taahirsayid.github.io/marioggle';
+}
+
+function getCorsOrigins(): string[] | boolean {
+  const raw = process.env.CORS_ORIGIN ?? process.env.PUBLIC_URL ?? '';
+  if (!raw) return true;
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+}
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
 
   await app.register(cors, {
-    origin: true,
+    origin: getCorsOrigins(),
     credentials: true,
+    allowedHeaders: ['Content-Type', 'X-Session-Id'],
   });
   await app.register(cookie, {
     secret: process.env.COOKIE_SECRET ?? 'dev-secret-change-in-production',
   });
 
   app.addHook('preHandler', async (req, reply) => {
-    if (MAINTENANCE && !req.url.startsWith('/api/maintenance')) {
+    if (MAINTENANCE && !req.url.startsWith('/api/maintenance') && !req.url.startsWith('/api/health')) {
       return reply.status(503).send({ code: 'MAINTENANCE', message: 'Under maintenance' });
     }
   });
 
-  function getOrCreateSession(req: { cookies: Record<string, string | undefined> }, reply: { setCookie: Function }) {
-    let sessionId = req.cookies[SESSION_COOKIE];
-    if (!sessionId || !sessions.has(sessionId)) {
-      sessionId = randomUUID();
-      sessions.set(sessionId, { createdAt: Date.now() });
-      reply.setCookie(SESSION_COOKIE, sessionId, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 86400,
-      });
-    }
-    return sessionId;
+  function getSessionFromRequest(req: {
+    headers: Record<string, string | string[] | undefined>;
+    cookies: Record<string, string | undefined>;
+  }): string {
+    const headerVal = req.headers[SESSION_HEADER];
+    const headerSession = Array.isArray(headerVal) ? headerVal[0] : headerVal;
+    return resolveSessionId(headerSession, req.cookies[SESSION_COOKIE]);
+  }
+
+  function attachSessionHeader(reply: { header: (k: string, v: string) => void }, sessionId: string) {
+    reply.header('X-Session-Id', sessionId);
   }
 
   app.get('/api/health', async () => ({
@@ -53,17 +61,20 @@ export async function buildApp() {
   app.get('/api/maintenance', async () => ({ maintenance: MAINTENANCE }));
 
   app.post('/api/session', async (req, reply) => {
-    const sessionId = getOrCreateSession(req, reply);
+    const sessionId = getSessionFromRequest(req);
+    attachSessionHeader(reply, sessionId);
     return { sessionId };
   });
 
   app.post('/api/session/socket-token', async (req, reply) => {
-    const sessionId = getOrCreateSession(req, reply);
+    const sessionId = getSessionFromRequest(req);
+    attachSessionHeader(reply, sessionId);
     return { token: sessionId };
   });
 
   app.post('/api/solo/games', async (req, reply) => {
-    const sessionId = getOrCreateSession(req, reply);
+    const sessionId = getSessionFromRequest(req);
+    attachSessionHeader(reply, sessionId);
     const body = req.body as { displayName: string; difficulty: string; durationSeconds: number };
 
     if (!isDictionaryAvailable()) {
@@ -83,7 +94,7 @@ export async function buildApp() {
         durationSeconds: body.durationSeconds,
         dictionary,
       });
-      sessions.set(sessionId, { ...sessions.get(sessionId)!, displayName: body.displayName });
+      updateSession(sessionId, { displayName: body.displayName });
       return { gameId: game.id };
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed';
@@ -92,15 +103,30 @@ export async function buildApp() {
   });
 
   app.get('/api/games/:gameId', async (req, reply) => {
-    const sessionId = getOrCreateSession(req, reply);
+    const sessionId = getSessionFromRequest(req);
+    attachSessionHeader(reply, sessionId);
     const { gameId } = req.params as { gameId: string };
     const game = gameManager.getGame(gameId);
     if (!game) return reply.status(404).send({ message: 'Not found' });
     return gameManager.toClientState(game, sessionId);
   });
 
+  app.get('/api/games/:gameId/results', async (req, reply) => {
+    const sessionId = getSessionFromRequest(req);
+    attachSessionHeader(reply, sessionId);
+    const { gameId } = req.params as { gameId: string };
+    const game = gameManager.getGame(gameId);
+    if (!game) return reply.status(404).send({ message: 'Not found' });
+    const results = gameManager.getResults(gameId);
+    if (!results) return reply.status(409).send({ message: 'Results not ready' });
+    const participant = results.find((r) => r.sessionId === sessionId);
+    if (!participant) return reply.status(403).send({ message: 'Not a participant' });
+    return { rankings: results };
+  });
+
   app.post('/api/games/:gameId/submit', async (req, reply) => {
-    const sessionId = getOrCreateSession(req, reply);
+    const sessionId = getSessionFromRequest(req);
+    attachSessionHeader(reply, sessionId);
     const { gameId } = req.params as { gameId: string };
     const body = req.body as { path: number[]; idempotencyKey: string };
 
@@ -121,12 +147,13 @@ export async function buildApp() {
   });
 
   app.post('/api/rooms', async (req, reply) => {
-    const sessionId = getOrCreateSession(req, reply);
+    const sessionId = getSessionFromRequest(req);
+    attachSessionHeader(reply, sessionId);
     const body = req.body as { displayName: string; maxPlayers: number; durationSeconds: number };
     try {
       const room = roomManager.createRoom({ sessionId, ...body });
-      const baseUrl = process.env.PUBLIC_URL ?? '/marioggle';
-      return roomManager.toResponse(room, baseUrl);
+      updateSession(sessionId, { displayName: body.displayName });
+      return roomManager.toResponse(room, getPublicUrl());
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed';
       return reply.status(400).send({ code: msg, message: msg });
@@ -134,17 +161,27 @@ export async function buildApp() {
   });
 
   app.post('/api/rooms/join', async (req, reply) => {
-    const sessionId = getOrCreateSession(req, reply);
+    const sessionId = getSessionFromRequest(req);
+    attachSessionHeader(reply, sessionId);
     const body = req.body as { displayName: string; code?: string; inviteToken?: string };
     try {
       const room = roomManager.joinRoom({ sessionId, ...body });
-      const baseUrl = process.env.PUBLIC_URL ?? '/marioggle';
-      return roomManager.toResponse(room, baseUrl);
+      updateSession(sessionId, { displayName: body.displayName });
+      return roomManager.toResponse(room, getPublicUrl());
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed';
       const status = msg === 'RATE_LIMITED' ? 429 : 400;
       return reply.status(status).send({ code: msg, message: msg });
     }
+  });
+
+  app.get('/api/rooms/:roomId', async (req, reply) => {
+    const sessionId = getSessionFromRequest(req);
+    attachSessionHeader(reply, sessionId);
+    const { roomId } = req.params as { roomId: string };
+    const room = roomManager.getRoom(roomId);
+    if (!room) return reply.status(404).send({ code: 'ROOM_NOT_FOUND' });
+    return roomManager.toResponse(room, getPublicUrl());
   });
 
   return app;

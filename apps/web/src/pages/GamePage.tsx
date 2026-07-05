@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TileGrid } from '../components/grid/TileGrid';
-import { api, type GameStateResponse } from '../services/api';
+import { api, type GameStateResponse, getSessionId } from '../services/api';
+import { getSocket, reconnectSocket } from '../services/socket';
 import { useSound } from '../hooks/useSound';
 
 export function GamePage() {
@@ -31,25 +32,70 @@ export function GamePage() {
     }
   }, [play]);
 
+  const applyState = useCallback((s: GameStateResponse) => {
+    setState(s);
+    syncTimer(s);
+    if (s.status === 'results') {
+      navigate(`/results/${gameId}`);
+    }
+  }, [gameId, navigate, syncTimer]);
+
   const poll = useCallback(async () => {
     if (!gameId) return;
     try {
       const s = await api.getGameState(gameId);
-      setState(s);
-      syncTimer(s);
-      if (s.status === 'results') {
-        navigate(`/results/${gameId}`);
-      }
+      applyState(s);
     } catch {
       setFeedback({ message: 'Connection lost — retrying…', type: 'invalid' });
     }
-  }, [gameId, navigate, syncTimer]);
+  }, [gameId, applyState]);
 
   useEffect(() => {
     poll();
-    const id = setInterval(poll, 1000);
+    const id = setInterval(poll, 2000);
     return () => clearInterval(id);
   }, [poll]);
+
+  useEffect(() => {
+    if (!gameId) return;
+    const sessionId = getSessionId();
+    if (!sessionId) return;
+
+    const socket = reconnectSocket(sessionId);
+    socket.emit('join_game', { gameId });
+
+    socket.on('game_state', (s: GameStateResponse) => applyState(s));
+    socket.on('round_started', (payload: { grid: GameStateResponse['grid']; activeEndsAt: number; serverNow: number }) => {
+      setState((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: 'active',
+              grid: payload.grid,
+              activeEndsAt: payload.activeEndsAt,
+              countdownEndsAt: null,
+              serverNow: payload.serverNow,
+            }
+          : prev,
+      );
+      play('countdown');
+    });
+    socket.on('word_result', (result: { message: string; outcome: string; totalScore: number }) => {
+      setFeedback({ message: result.message, type: result.outcome });
+      if (result.outcome === 'accepted') play('valid');
+      else if (result.outcome === 'duplicate') play('duplicate');
+      else play('invalid');
+      setState((prev) => (prev ? { ...prev, score: result.totalScore } : prev));
+    });
+    socket.on('round_ended', () => navigate(`/results/${gameId}`));
+
+    return () => {
+      socket.off('game_state');
+      socket.off('round_started');
+      socket.off('word_result');
+      socket.off('round_ended');
+    };
+  }, [gameId, applyState, navigate, play]);
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -64,6 +110,12 @@ export function GamePage() {
   const handleSubmit = async (path: number[]) => {
     if (!gameId || !state || state.status !== 'active') return;
     const key = `${Date.now()}-${path.join('-')}`;
+
+    if (state.mode === 'multiplayer') {
+      getSocket().emit('submit_word', { gameId, path, idempotencyKey: key });
+      return;
+    }
+
     try {
       const result = await api.submitWord(gameId, path, key);
       setFeedback({ message: result.message, type: result.outcome });
@@ -103,11 +155,7 @@ export function GamePage() {
         <div className={`feedback ${feedback.type}`}>{feedback.message}</div>
       )}
       {state.grid.length > 0 && (
-        <TileGrid
-          grid={state.grid}
-          disabled={!active}
-          onSubmit={handleSubmit}
-        />
+        <TileGrid grid={state.grid} disabled={!active} onSubmit={handleSubmit} />
       )}
     </div>
   );

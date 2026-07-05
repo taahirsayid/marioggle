@@ -6,24 +6,12 @@ import { TrieDictionary } from '@marioggle/engine';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const DEV_WORDS = [
-  'cat', 'cats', 'dog', 'dogs', 'run', 'runs', 'running', 'tea', 'eat', 'ate',
-  'rate', 'tar', 'art', 'rat', 'star', 'arts', 'tars', 'race', 'care', 'acre',
-  'react', 'trace', 'cart', 'cast', 'cost', 'most', 'post', 'stop', 'tops', 'spot',
-  'port', 'sort', 'orts', 'core', 'rote', 'toe', 'toes', 'set', 'net', 'ten',
-  'nets', 'nest', 'sent', 'tens', 'stone', 'notes', 'tones', 'onset', 'steno',
-  'train', 'rain', 'air', 'tin', 'nit', 'tan', 'ant', 'ants', 'stand', 'sand',
-  'and', 'ads', 'sad', 'dad', 'add', 'adds', 'dart', 'trad', 'road', 'oar',
-  'rod', 'rods', 'soda', 'ado', 'do', 'so', 'at', 'it', 'is', 'as', 'or',
-  'quit', 'quite', 'quote', 'quits', 'quest', 'question', 'equal', 'equate',
-  'line', 'lines', 'liner', 'linen', 'lion', 'loin', 'noil', 'oil', 'ion',
-  'one', 'ones', 'tone', 'note', 'not', 'ton', 'nots', 'son', 'sons', 'won',
-  'own', 'owns', 'now', 'snow', 'sown', 'wons', 'slow', 'lows', 'owl', 'owls',
-  'word', 'words', 'sword', 'draw', 'ward', 'raw', 'war', 'wars', 'was', 'saw',
-  'sea', 'ease', 'seas', 'seat', 'ates', 'east', 'eats', 'teas', 'team', 'meat',
-  'mate', 'tame', 'meta', 'term', 'met', 'rem', 'rent', 'tern', 'net', 'pen',
-  'pent', 'pet', 'pets', 'pest', 'step', 'pests', 'steps', 'sept', 'set', 'rest',
-  'res', 'ser', 'err', 'errs', 'error', 'errors', 'rose', 'ores', 'sore', 'roe',
-  'ore', 'ore', 'ore', 'ore', 'ore', 'ore', 'ore', 'ore', 'ore', 'ore',
+  'cat', 'cats', 'dog', 'dogs', 'run', 'runs', 'running', 'tea', 'eat', 'rate',
+  'star', 'trace', 'care', 'race', 'stone', 'notes', 'train', 'rain', 'stand',
+  'sand', 'quit', 'quite', 'quote', 'quest', 'equal', 'line', 'lines', 'lion',
+  'word', 'words', 'team', 'mate', 'rest', 'rose', 'ore', 'port', 'sort', 'stop',
+  'net', 'ten', 'nest', 'sent', 'tone', 'note', 'one', 'son', 'own', 'now',
+  'slow', 'sea', 'ease', 'east', 'seat', 'pen', 'pet', 'step', 'rent', 'term',
 ];
 
 let dictionary: TrieDictionary | null = null;
@@ -33,9 +21,8 @@ export function loadDictionary(): TrieDictionary {
 
   const paths = [
     join(__dirname, '../data/dictionary.json'),
-    join(__dirname, '../../data/dictionary.json'),
-    join(process.cwd(), 'data/dictionary.json'),
     join(process.cwd(), 'apps/server/data/dictionary.json'),
+    join(process.cwd(), 'data/dictionary.json'),
   ];
 
   for (const p of paths) {
@@ -43,8 +30,10 @@ export function loadDictionary(): TrieDictionary {
       const data = JSON.parse(readFileSync(p, 'utf-8')) as {
         words: string[];
         offensive?: string[];
+        source?: string;
       };
       dictionary = TrieDictionary.fromWordList(data.words, data.offensive ?? []);
+      console.log(`Dictionary loaded: ${data.words.length} words (${data.source ?? 'file'})`);
       return dictionary;
     }
   }
@@ -55,7 +44,7 @@ export function loadDictionary(): TrieDictionary {
     : [];
 
   dictionary = TrieDictionary.fromWordList(DEV_WORDS, offensive);
-  console.warn('Using built-in dev dictionary. Run npm run build:dictionary for SCOWL list.');
+  console.warn('Using built-in dev dictionary. Run npm run build:dictionary for WordNet list.');
   return dictionary;
 }
 

@@ -7,7 +7,7 @@ import {
   DURATION_STEP_SECONDS,
   MAX_DISPLAY_NAME_LENGTH,
 } from '@marioggle/shared';
-import { api } from '../services/api';
+import { api, wakeServer } from '../services/api';
 
 const DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 
@@ -23,6 +23,7 @@ export function SoloSetupPage() {
     setError('');
     setLoading(true);
     try {
+      await wakeServer();
       await api.ensureSession();
       const { gameId } = await api.startSoloGame({
         displayName: displayName.trim(),

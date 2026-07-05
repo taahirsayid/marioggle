@@ -1,71 +1,48 @@
 # Marioggle
 
-A browser-based competitive word game inspired by Boggle. Find words on a shared 5×5 grid, score points, and beat the clock!
+Browser-based competitive word game (5×5 Boggle-style grid).
 
-**Live demo:** https://taahirsayid.github.io/marioggle/
+- **Frontend:** GitHub Pages — https://taahirsayid.github.io/marioggle/
+- **Backend API:** Render (free tier) — solo + multiplayer
+- **Dictionary:** WordNet 3.1 via `wordnet-db`
 
-## Features (MVP in progress)
+## Quick start (play the game)
 
-- Solo play vs computer (Easy / Medium / Hard)
-- Private multiplayer rooms (2–6 players) — backend required
-- Server-authoritative scoring, timer, and word validation
-- SCOWL dictionary (free, attribution below)
-- Responsive web UI for desktop, tablet, and mobile
+Follow **[RENDER_SETUP.md](./RENDER_SETUP.md)** — summary:
 
-## Tech stack
-
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 19 + TypeScript + Vite → **GitHub Pages** |
-| Backend | Node.js + Fastify + Socket.io → **Render free tier** |
-| Game engine | `@marioggle/engine` (pure TypeScript, fully tested) |
-| Dictionary | [SCOWL](http://wordlist.aspell.net/) size 60+ |
+1. **Render:** Deploy `marioggle-api` from this repo. Set env vars when prompted (`COOKIE_SECRET` → Generate).
+2. **GitHub secret:** Add `VITE_API_URL` = your Render URL (e.g. `https://marioggle-api.onrender.com`).
+3. **GitHub Pages:** Settings → Pages → branch **`gh-pages`** / **root**.
+4. Re-run **Deploy GitHub Pages** workflow.
+5. Open https://taahirsayid.github.io/marioggle/ — wait for “Waking game server…” on first load (Render free tier).
 
 ## Local development
 
 ```bash
 npm install
-npm run build:dictionary   # fetch SCOWL word list
-npm run build -w @marioggle/shared
-npm run build -w @marioggle/engine
-npm run dev                # starts API :3001 + web :5173
+npm run build:dictionary
+npm run dev
 ```
 
-Open http://localhost:5173/marioggle/
+Open http://localhost:5173/marioggle/ (API on :3001).
 
-## Deployment
+## Testing solo
 
-### Frontend (GitHub Pages)
+1. Open the site → **Play Solo**
+2. Enter name, difficulty, duration → **Start Game**
+3. After 3-second countdown, swipe/click words on the grid
 
-Push to `main` — GitHub Actions builds and deploys to the `gh-pages` branch.
+## Testing multiplayer
 
-1. Go to **Settings → Pages**
-2. Set **Source** to **Deploy from a branch**
-3. Choose branch **`gh-pages`**, folder **`/ (root)`**
-4. After the first workflow run completes, visit https://taahirsayid.github.io/marioggle/
-5. Optionally set repository secret `VITE_API_URL` to your Render API URL (e.g. `https://marioggle.onrender.com`) and re-run the deploy workflow
-
-### Backend (Render free tier)
-
-1. Create a **Web Service** pointing at `apps/server`
-2. Build: `npm install && npm run build:dictionary && npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/server`
-3. Start: `npm run start -w @marioggle/server`
-4. Set `COOKIE_SECRET` and `PUBLIC_URL=https://taahirsayid.github.io/marioggle`
-
-## Testing
-
-```bash
-npm test
-```
+1. **Player A:** Create Game → note the 6-digit code
+2. **Player B:** Join Game (second browser/incognito) → enter code
+3. **Player A:** In lobby → **Start Game** (needs 2+ players)
+4. Both play on the same grid in real time
 
 ## Dictionary attribution
 
-Word lists derived from [SCOWL](http://wordlist.aspell.net/) (Spell Checker Oriented Word Lists) by Kevin Atkinson. See SCOWL licence for terms.
+WordNet 3.1 — Princeton University. See WordNet licence terms.
 
 ## Specification
 
-See [TECHNICAL_SPECIFICATION.md](./TECHNICAL_SPECIFICATION.md) for the full technical spec mapped to every BRD requirement.
-
-## Repository
-
-https://github.com/taahirsayid/marioggle
+[TECHNICAL_SPECIFICATION.md](./TECHNICAL_SPECIFICATION.md)

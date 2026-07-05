@@ -15,6 +15,7 @@
   "devDependencies": {
     "concurrently": "^9.1.2",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "wordnet-db": "^3.1.14"
   }
 }

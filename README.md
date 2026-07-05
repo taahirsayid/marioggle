@@ -37,10 +37,13 @@ Open http://localhost:5173/marioggle/
 
 ### Frontend (GitHub Pages)
 
-Push to `main` — GitHub Actions builds and deploys automatically.
+Push to `main` — GitHub Actions builds and deploys to the `gh-pages` branch.
 
-1. Enable **GitHub Pages** → Source: **GitHub Actions**
-2. Optionally set repository secret `VITE_API_URL` to your Render API URL (e.g. `https://marioggle-api.onrender.com`)
+1. Go to **Settings → Pages**
+2. Set **Source** to **Deploy from a branch**
+3. Choose branch **`gh-pages`**, folder **`/ (root)`**
+4. After the first workflow run completes, visit https://taahirsayid.github.io/marioggle/
+5. Optionally set repository secret `VITE_API_URL` to your Render API URL (e.g. `https://marioggle.onrender.com`) and re-run the deploy workflow
 
 ### Backend (Render free tier)
 

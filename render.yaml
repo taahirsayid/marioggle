@@ -6,7 +6,7 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install && npm run build:dictionary && npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/server
+    buildCommand: npm install --include=dev && npm run build:dictionary && npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/server
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:

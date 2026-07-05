@@ -20,7 +20,7 @@ Render will also run `npm run build:dictionary` which loads **WordNet** from the
 - **Runtime:** Node
 - **Build command:**
   ```
-  npm install && npm run build:dictionary && npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/server
+  npm install --include=dev && npm run build:dictionary && npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/server
   ```
 - **Start command:**
   ```

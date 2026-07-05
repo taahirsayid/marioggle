@@ -10,13 +10,15 @@
     "build:web": "npm run build -w @marioggle/web",
     "dev": "concurrently \"npm run dev -w @marioggle/server\" \"npm run dev -w @marioggle/web\"",
     "test": "npm run test -w @marioggle/engine && npm run test -w @marioggle/shared",
-    "build:dictionary": "tsx scripts/build-dictionary.ts",
+    "build:dictionary": "node scripts/build-dictionary.mjs",
     "start": "npm run start -w @marioggle/server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
     "wordnet-db": "^3.1.14"
   }
 }

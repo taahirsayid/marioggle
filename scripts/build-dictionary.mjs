@@ -1,7 +1,6 @@
-#!/usr/bin/env tsx
 /**
  * Builds dictionary.json from WordNet 3.1 (via wordnet-db npm package).
- * Extracts single-word lemmas from index.noun/verb/adj/adv files.
+ * Plain Node.js — no tsx required (Render production builds skip devDependencies).
  */
 import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -12,7 +11,7 @@ const OUT_DIR = join(process.cwd(), 'data');
 const OUT_FILE = join(OUT_DIR, 'dictionary.json');
 const SERVER_OUT = join(process.cwd(), 'apps/server/data/dictionary.json');
 
-function loadOffensive(): string[] {
+function loadOffensive() {
   const p = join(OUT_DIR, 'offensive-deny-list.txt');
   if (!existsSync(p)) return [];
   return readFileSync(p, 'utf-8')
@@ -21,18 +20,18 @@ function loadOffensive(): string[] {
     .filter(Boolean);
 }
 
-function isValidLemma(lemma: string): boolean {
+function isValidLemma(lemma) {
   const w = lemma.toLowerCase().replace(/_/g, '');
   if (w.length < 3) return false;
   if (!/^[a-z]+$/.test(w)) return false;
   return true;
 }
 
-function normalizeLemma(lemma: string): string {
+function normalizeLemma(lemma) {
   return lemma.toLowerCase().replace(/_/g, '');
 }
 
-function findWordNetDictDir(): string {
+function findWordNetDictDir() {
   try {
     const wordnetDbPath = dirname(require.resolve('wordnet-db/package.json'));
     const dictDir = join(wordnetDbPath, 'dict');
@@ -50,8 +49,8 @@ function findWordNetDictDir(): string {
   throw new Error('wordnet-db dict folder not found. Run npm install wordnet-db');
 }
 
-function loadWordNetLemmas(dictDir: string): Set<string> {
-  const words = new Set<string>();
+function loadWordNetLemmas(dictDir) {
+  const words = new Set();
   const indexFiles = readdirSync(dictDir).filter((f) => f.startsWith('index.'));
 
   for (const file of indexFiles) {
@@ -69,7 +68,6 @@ function loadWordNetLemmas(dictDir: string): Set<string> {
   return words;
 }
 
-/** Minimal fallback if WordNet package missing during local dev. */
 const FALLBACK_WORDS = [
   'cat', 'cats', 'dog', 'dogs', 'run', 'runs', 'running', 'tea', 'eat', 'ate',
   'rate', 'tar', 'art', 'rat', 'star', 'arts', 'race', 'care', 'acre', 'react',
@@ -87,7 +85,7 @@ async function main() {
   mkdirSync(OUT_DIR, { recursive: true });
   mkdirSync(dirname(SERVER_OUT), { recursive: true });
   const offensive = loadOffensive();
-  let words: Set<string>;
+  let words;
 
   try {
     const dictDir = findWordNetDictDir();

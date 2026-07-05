@@ -88,13 +88,13 @@ export async function registerRoutes(app: FastifyInstance) {
     }
 
     try {
-      const dictionary = getGridDictionary();
+      const gameManager = await getGameManager();
       const game = await gameManager.createSoloGameAsync({
         sessionId,
         displayName: body.displayName,
         difficulty: body.difficulty as 'easy' | 'medium' | 'hard',
         durationSeconds: body.durationSeconds,
-        dictionary,
+        dictionary: getGridDictionary(),
       });
       updateSession(sessionId, { displayName: body.displayName });
       return { gameId: game.id };

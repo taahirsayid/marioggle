@@ -11,7 +11,7 @@ import {
 import type { WordDictionary } from '@marioggle/engine';
 import {
   generateQualifiedGrid,
-  generateQualifiedGridAsync,
+  pickPresetGrid,
   submitWord,
   submitWordAsync,
   type SolutionWord,
@@ -105,8 +105,12 @@ export class GameManager {
     }
 
     const seed = Math.floor(Math.random() * 1_000_000_000);
-    const { tiles, solutions, seed: gridSeed } = await generateQualifiedGridAsync(seed, input.dictionary);
-    return this.buildSoloGame(input, { tiles, solutions, gridSeed });
+    const preset = pickPresetGrid(seed);
+    return this.buildSoloGame(input, {
+      tiles: preset.tiles,
+      solutions: preset.solutions,
+      gridSeed: preset.seed,
+    });
   }
 
   private buildSoloGame(
@@ -176,8 +180,12 @@ export class GameManager {
     }
 
     const seed = Math.floor(Math.random() * 1_000_000_000);
-    const { tiles, solutions, seed: gridSeed } = await generateQualifiedGridAsync(seed, input.dictionary);
-    return this.buildMultiplayerGame(roomId, input, { tiles, solutions, gridSeed });
+    const preset = pickPresetGrid(seed);
+    return this.buildMultiplayerGame(roomId, input, {
+      tiles: preset.tiles,
+      solutions: preset.solutions,
+      gridSeed: preset.seed,
+    });
   }
 
   createMultiplayerGame(roomId: string, input: CreateMultiplayerInput): ActiveGame {

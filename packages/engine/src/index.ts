@@ -1,3 +1,4 @@
+export * from './presetGrids.js';
 export * from './pathValidator.js';
 export * from './wordValidator.js';
 export * from './gridGenerator.js';

@@ -70,6 +70,7 @@ export async function wakeServer(maxAttempts = 12): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE}/api/health`, {
         headers: getSessionId() ? { 'X-Session-Id': getSessionId()! } : {},
+        signal: AbortSignal.timeout(15_000),
       });
       if (res.ok) return true;
     } catch {

@@ -10,7 +10,12 @@ function getCorsOrigins(): string[] | boolean {
 
 async function main() {
   const { default: Fastify } = await import('fastify');
-  const app = Fastify({ logger: true }) as FastifyInstance;
+  const app = Fastify({
+    logger: true,
+    // Keep health probes fast under load on free-tier instances.
+    connectionTimeout: 120_000,
+    requestTimeout: 120_000,
+  }) as FastifyInstance;
 
   app.get('/', async () => ({ ok: true, service: 'marioggle-api', health: '/api/health' }));
   app.get('/api/health', async () => ({
@@ -26,10 +31,11 @@ async function main() {
   await app.listen({ port: PORT, host: '0.0.0.0' });
   console.log(`Health endpoint live on 0.0.0.0:${PORT}`);
 
-  // Defer Socket.io + game engine so health checks respond immediately after listen.
-  setImmediate(() => {
+  // Warm game engine in background after health checks have passed.
+  setTimeout(() => {
+    void import('./lazyServices.js').then((m) => m.getGameManager());
     void initRealtime(app);
-  });
+  }, 2000);
 }
 
 async function initRealtime(app: FastifyInstance) {

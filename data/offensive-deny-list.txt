@@ -1,0 +1,2 @@
+# Offensive terms for display-name and supplemental word filtering (AU market)
+# Extend this list during QA

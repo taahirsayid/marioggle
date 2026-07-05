@@ -1,0 +1,20 @@
+{
+  "name": "marioggle",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/web && npm run build -w @marioggle/server",
+    "build:web": "npm run build -w @marioggle/web",
+    "dev": "concurrently \"npm run dev -w @marioggle/server\" \"npm run dev -w @marioggle/web\"",
+    "test": "npm run test -w @marioggle/engine && npm run test -w @marioggle/shared",
+    "build:dictionary": "tsx scripts/build-dictionary.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

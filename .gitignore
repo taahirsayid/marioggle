@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+data/scowl/
+data/dictionary.json
+apps/server/data/dictionary.json
+.DS_Store
+coverage/
+playwright-report/
+test-results/

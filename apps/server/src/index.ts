@@ -12,12 +12,7 @@ async function main() {
   const { default: Fastify } = await import('fastify');
   const app = Fastify({ logger: true }) as FastifyInstance;
 
-  let routesReady = false;
-
   app.get('/api/health', async () => {
-    if (!routesReady) {
-      return { ok: true, status: 'starting' };
-    }
     const { isDictionaryLoaded, isDictionaryLoading } = await import('./dictionary/loader.js');
     return {
       ok: true,
@@ -29,15 +24,12 @@ async function main() {
 
   app.get('/', async () => ({ ok: true, service: 'marioggle-api', health: '/api/health' }));
 
-  await app.listen({ port: PORT, host: '0.0.0.0' });
-  console.log(`Health endpoint live on 0.0.0.0:${PORT}`);
-
-  // Yield so Render's first health probe gets a response before heavy module loading.
-  await new Promise<void>((resolve) => setImmediate(resolve));
-
+  // Fastify plugins and parsers must be registered before listen().
   const { registerRoutes } = await import('./app.js');
   await registerRoutes(app);
-  routesReady = true;
+
+  await app.listen({ port: PORT, host: '0.0.0.0' });
+  console.log(`Health endpoint live on 0.0.0.0:${PORT}`);
 
   const { startDictionaryLoad } = await import('./dictionary/loader.js');
   startDictionaryLoad();

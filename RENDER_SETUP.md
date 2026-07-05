@@ -24,9 +24,9 @@ Render will also run `npm run build:dictionary` which loads **WordNet** from the
   ```
 - **Start command:**
   ```
-  npm start
+  node apps/server/dist/index.js
   ```
-- **Health check path:** `/api/health`
+- **Health check path:** `/` (or `/api/health` — both respond immediately on startup)
 
 After deploy, copy your service URL (e.g. `https://marioggle-api.onrender.com`).
 

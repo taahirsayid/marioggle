@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { gameManager } from '../game/gameManager.js';
+import { getGameManager } from '../lazyServices.js';
 import { roomManager } from '../room/roomManager.js';
 import { loadDictionary, isDictionaryLoaded } from '../dictionary/loader.js';
 import { canStartRoom, connectedPlayers } from '../room/roomHelpers.js';
@@ -11,7 +11,9 @@ function getSessionId(socket: Socket): string | undefined {
   return (socket.handshake.auth?.sessionId as string) ?? socketSessions.get(socket.id);
 }
 
-export function attachSocketHandlers(io: Server) {
+export async function attachSocketHandlers(io: Server) {
+  const gameManager = await getGameManager();
+
   gameManager.setBroadcast((gameId, event, payload, sessionId) => {
     if (sessionId) {
       const socketId = sessionSockets.get(sessionId);

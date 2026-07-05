@@ -19,13 +19,11 @@ async function main() {
       return { ok: true, status: 'starting' };
     }
     const { isDictionaryLoaded, isDictionaryLoading } = await import('./dictionary/loader.js');
-    const { gameManager } = await import('./game/gameManager.js');
     return {
       ok: true,
       status: 'ready',
       dictionary: isDictionaryLoaded(),
       dictionaryLoading: isDictionaryLoading(),
-      activeGames: gameManager.getActiveGameCount(),
     };
   });
 
@@ -33,6 +31,9 @@ async function main() {
 
   await app.listen({ port: PORT, host: '0.0.0.0' });
   console.log(`Health endpoint live on 0.0.0.0:${PORT}`);
+
+  // Yield so Render's first health probe gets a response before heavy module loading.
+  await new Promise<void>((resolve) => setImmediate(resolve));
 
   const { registerRoutes } = await import('./app.js');
   await registerRoutes(app);
@@ -51,7 +52,7 @@ async function main() {
   });
 
   const { attachSocketHandlers } = await import('./ws/socketHandler.js');
-  attachSocketHandlers(io);
+  await attachSocketHandlers(io);
 
   console.log('Marioggle API fully initialized');
 }

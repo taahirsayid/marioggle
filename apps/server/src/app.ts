@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
-import { gameManager } from './game/gameManager.js';
+import { getGameManager } from './lazyServices.js';
 import { roomManager } from './room/roomManager.js';
 import { loadDictionary, isDictionaryLoaded, isDictionaryLoading } from './dictionary/loader.js';
 import { resolveSessionId, updateSession } from './session/sessionStore.js';
@@ -85,6 +85,8 @@ export async function registerRoutes(app: FastifyInstance) {
       });
     }
 
+    const gameManager = await getGameManager();
+
     if (!gameManager.canStartGame()) {
       return reply.status(503).send({ code: 'CAPACITY_FULL', message: 'Maximum games in progress. Try again soon.' });
     }
@@ -110,6 +112,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const sessionId = getSessionFromRequest(req);
     attachSessionHeader(reply, sessionId);
     const { gameId } = req.params as { gameId: string };
+    const gameManager = await getGameManager();
     const game = gameManager.getGame(gameId);
     if (!game) return reply.status(404).send({ message: 'Not found' });
     return gameManager.toClientState(game, sessionId);
@@ -119,6 +122,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const sessionId = getSessionFromRequest(req);
     attachSessionHeader(reply, sessionId);
     const { gameId } = req.params as { gameId: string };
+    const gameManager = await getGameManager();
     const game = gameManager.getGame(gameId);
     if (!game) return reply.status(404).send({ message: 'Not found' });
     const results = gameManager.getResults(gameId);
@@ -136,6 +140,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
     try {
       const dictionary = loadDictionary();
+      const gameManager = await getGameManager();
       const result = gameManager.handleSubmit(
         gameId,
         sessionId,

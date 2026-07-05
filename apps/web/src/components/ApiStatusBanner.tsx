@@ -26,7 +26,7 @@ export function ApiStatusBanner() {
   if (status === 'waking') {
     return (
       <div className="feedback duplicate" style={{ margin: '1rem' }}>
-        Waking game server… (free tier may take up to 30 seconds)
+        Waking game server… Free tier can take up to 60 seconds on first load.
       </div>
     );
   }

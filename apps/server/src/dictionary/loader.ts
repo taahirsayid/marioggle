@@ -15,17 +15,30 @@ const DEV_WORDS = [
 ];
 
 let dictionary: TrieDictionary | null = null;
+let loading = false;
+
+export function isDictionaryLoaded(): boolean {
+  return dictionary !== null;
+}
+
+/** True only when dictionary is already in memory (does not trigger load). */
+export function isDictionaryAvailable(): boolean {
+  return isDictionaryLoaded();
+}
+
+function dictionaryPaths(): string[] {
+  return [
+    join(__dirname, '../../data/dictionary.json'),
+    join(__dirname, '../data/dictionary.json'),
+    join(process.cwd(), 'data/dictionary.json'),
+    join(process.cwd(), 'apps/server/data/dictionary.json'),
+  ];
+}
 
 export function loadDictionary(): TrieDictionary {
   if (dictionary) return dictionary;
 
-  const paths = [
-    join(__dirname, '../data/dictionary.json'),
-    join(process.cwd(), 'apps/server/data/dictionary.json'),
-    join(process.cwd(), 'data/dictionary.json'),
-  ];
-
-  for (const p of paths) {
+  for (const p of dictionaryPaths()) {
     if (existsSync(p)) {
       const data = JSON.parse(readFileSync(p, 'utf-8')) as {
         words: string[];
@@ -33,7 +46,7 @@ export function loadDictionary(): TrieDictionary {
         source?: string;
       };
       dictionary = TrieDictionary.fromWordList(data.words, data.offensive ?? []);
-      console.log(`Dictionary loaded: ${data.words.length} words (${data.source ?? 'file'})`);
+      console.log(`Dictionary loaded: ${data.words.length} words from ${p} (${data.source ?? 'file'})`);
       return dictionary;
     }
   }
@@ -48,11 +61,21 @@ export function loadDictionary(): TrieDictionary {
   return dictionary;
 }
 
-export function isDictionaryAvailable(): boolean {
-  try {
-    loadDictionary();
-    return true;
-  } catch {
-    return false;
-  }
+/** Load dictionary after the HTTP server is listening (avoids Render health-check timeout). */
+export function startDictionaryLoad(): void {
+  if (dictionary || loading) return;
+  loading = true;
+  setImmediate(() => {
+    try {
+      loadDictionary();
+    } catch (err) {
+      console.error('Dictionary load failed:', err);
+    } finally {
+      loading = false;
+    }
+  });
+}
+
+export function isDictionaryLoading(): boolean {
+  return loading;
 }

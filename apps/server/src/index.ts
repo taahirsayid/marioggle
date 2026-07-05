@@ -1,6 +1,6 @@
 import { buildApp } from './app.js';
 import { attachSocketHandlers } from './ws/socketHandler.js';
-import { loadDictionary } from './dictionary/loader.js';
+import { startDictionaryLoad } from './dictionary/loader.js';
 import { Server } from 'socket.io';
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -12,13 +12,9 @@ function getCorsOrigins(): string[] | boolean {
 }
 
 async function main() {
-  try {
-    loadDictionary();
-  } catch (err) {
-    console.error('Dictionary failed to load:', err);
-  }
-
   const app = await buildApp();
+
+  // Listen immediately so Render health checks pass within 5 seconds.
   await app.listen({ port: PORT, host: '0.0.0.0' });
 
   const io = new Server(app.server, {
@@ -31,6 +27,9 @@ async function main() {
 
   attachSocketHandlers(io);
   console.log(`Marioggle server listening on port ${PORT}`);
+
+  // Load WordNet trie in background (can take several seconds on free tier).
+  startDictionaryLoad();
 }
 
 main().catch((err) => {

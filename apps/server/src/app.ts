@@ -3,7 +3,7 @@ import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import { gameManager } from './game/gameManager.js';
 import { roomManager } from './room/roomManager.js';
-import { loadDictionary, isDictionaryAvailable } from './dictionary/loader.js';
+import { loadDictionary, isDictionaryAvailable, isDictionaryLoaded, isDictionaryLoading } from './dictionary/loader.js';
 import { resolveSessionId, updateSession } from './session/sessionStore.js';
 
 const SESSION_COOKIE = 'marioggle_session';
@@ -63,8 +63,15 @@ export async function buildApp() {
 
   app.get('/api/health', async () => ({
     ok: true,
-    dictionary: isDictionaryAvailable(),
+    dictionary: isDictionaryLoaded(),
+    dictionaryLoading: isDictionaryLoading(),
     activeGames: gameManager.getActiveGameCount(),
+  }));
+
+  app.get('/', async () => ({
+    ok: true,
+    service: 'marioggle-api',
+    health: '/api/health',
   }));
 
   app.get('/api/maintenance', async () => ({ maintenance: MAINTENANCE }));
@@ -86,8 +93,11 @@ export async function buildApp() {
     attachSessionHeader(reply, sessionId);
     const body = req.body as { displayName: string; difficulty: string; durationSeconds: number };
 
-    if (!isDictionaryAvailable()) {
-      return reply.status(503).send({ code: 'DICTIONARY_UNAVAILABLE' });
+    if (!isDictionaryLoaded()) {
+      return reply.status(503).send({
+        code: isDictionaryLoading() ? 'DICTIONARY_LOADING' : 'DICTIONARY_UNAVAILABLE',
+        message: 'Dictionary is still loading. Please retry in a few seconds.',
+      });
     }
 
     if (!gameManager.canStartGame()) {

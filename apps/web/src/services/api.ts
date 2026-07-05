@@ -15,7 +15,11 @@ function setSessionId(id: string) {
 
 async function parseError(res: Response): Promise<string> {
   const err = await res.json().catch(() => ({ message: res.statusText }));
-  return err.message ?? err.code ?? 'Request failed';
+  const msg = err.message ?? err.code ?? 'Request failed';
+  if (msg === 'DICTIONARY_LOADING' || err.code === 'DICTIONARY_LOADING') {
+    return 'Server is still loading the word list. Please wait a few seconds and try again.';
+  }
+  return msg;
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -48,7 +52,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 /** Wake Render free-tier instance (may take ~30s after spin-down). */
-export async function wakeServer(maxAttempts = 8): Promise<boolean> {
+export async function wakeServer(maxAttempts = 12): Promise<boolean> {
   if (!API_BASE) {
     console.warn('VITE_API_URL is not set — API calls will fail on GitHub Pages');
     return false;
@@ -58,11 +62,18 @@ export async function wakeServer(maxAttempts = 8): Promise<boolean> {
       const res = await fetch(`${API_BASE}/api/health`, {
         headers: getSessionId() ? { 'X-Session-Id': getSessionId()! } : {},
       });
-      if (res.ok) return true;
+      if (res.ok) {
+        const data = (await res.json()) as { dictionary?: boolean; dictionaryLoading?: boolean };
+        if (data.dictionary) return true;
+        if (!data.dictionaryLoading && !data.dictionary) {
+          // Server up but dictionary failed — still allow session/room flows to surface errors
+          return true;
+        }
+      }
     } catch {
-      // retry
+      // server waking or spinning up
     }
-    await new Promise((r) => setTimeout(r, 4000));
+    await new Promise((r) => setTimeout(r, 5000));
   }
   return false;
 }

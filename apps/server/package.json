@@ -14,8 +14,7 @@
     "@marioggle/engine": "*",
     "@marioggle/shared": "*",
     "fastify": "^5.2.1",
-    "socket.io": "^4.8.1",
-    "wordnet-db": "^3.1.14"
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "@types/node": "^22.13.11",

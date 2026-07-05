@@ -12,28 +12,27 @@ async function main() {
   const { default: Fastify } = await import('fastify');
   const app = Fastify({ logger: true }) as FastifyInstance;
 
-  app.get('/api/health', async () => {
-    const { isDictionaryLoaded, isDictionaryLoading } = await import('./dictionary/loader.js');
-    return {
-      ok: true,
-      status: 'ready',
-      dictionary: isDictionaryLoaded(),
-      dictionaryLoading: isDictionaryLoading(),
-    };
-  });
-
   app.get('/', async () => ({ ok: true, service: 'marioggle-api', health: '/api/health' }));
+  app.get('/api/health', async () => ({
+    ok: true,
+    status: 'ready',
+    dictionary: 'api',
+  }));
 
-  // Fastify plugins and parsers must be registered before listen().
-  const { registerRoutes } = await import('./app.js');
+  const { configureApp, registerRoutes } = await import('./app.js');
+  await configureApp(app);
   await registerRoutes(app);
 
   await app.listen({ port: PORT, host: '0.0.0.0' });
   console.log(`Health endpoint live on 0.0.0.0:${PORT}`);
 
-  const { startDictionaryLoad } = await import('./dictionary/loader.js');
-  startDictionaryLoad();
+  // Defer Socket.io + game engine so health checks respond immediately after listen.
+  setImmediate(() => {
+    void initRealtime(app);
+  });
+}
 
+async function initRealtime(app: FastifyInstance) {
   const { Server } = await import('socket.io');
   const io = new Server(app.server, {
     cors: {

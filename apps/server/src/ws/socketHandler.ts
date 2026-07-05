@@ -1,7 +1,8 @@
 import type { Server, Socket } from 'socket.io';
 import { getGameManager } from '../lazyServices.js';
 import { roomManager } from '../room/roomManager.js';
-import { loadDictionary, isDictionaryLoaded } from '../dictionary/loader.js';
+import { getGridDictionary } from '../dictionary/gridDictionary.js';
+import { lookupWord } from '../dictionary/dictionaryApi.js';
 import { canStartRoom, connectedPlayers } from '../room/roomHelpers.js';
 
 const socketSessions = new Map<string, string>();
@@ -68,14 +69,7 @@ export async function attachSocketHandlers(io: Server) {
       }
 
       try {
-        if (!isDictionaryLoaded()) {
-          socket.emit('error', {
-            code: 'DICTIONARY_LOADING',
-            message: 'Dictionary still loading. Retry in a few seconds.',
-          });
-          return;
-        }
-        const dictionary = loadDictionary();
+        const dictionary = getGridDictionary();
         const players = connectedPlayers(room).map((p) => ({
           sessionId: p.sessionId,
           displayName: p.displayName,
@@ -120,7 +114,7 @@ export async function attachSocketHandlers(io: Server) {
 
     socket.on(
       'submit_word',
-      ({
+      async ({
         gameId,
         path,
         idempotencyKey,
@@ -130,8 +124,14 @@ export async function attachSocketHandlers(io: Server) {
         idempotencyKey: string;
       }) => {
         try {
-          const dictionary = loadDictionary();
-          gameManager.handleSubmit(gameId, sessionId, path, idempotencyKey, dictionary);
+          await gameManager.handleSubmitAsync(
+            gameId,
+            sessionId,
+            path,
+            idempotencyKey,
+            getGridDictionary(),
+            lookupWord,
+          );
         } catch (e) {
           const msg = e instanceof Error ? e.message : 'Submit failed';
           socket.emit('error', { code: msg, message: msg });

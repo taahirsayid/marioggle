@@ -3,7 +3,8 @@ import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import { getGameManager } from './lazyServices.js';
 import { roomManager } from './room/roomManager.js';
-import { loadDictionary, isDictionaryLoaded, isDictionaryLoading } from './dictionary/loader.js';
+import { getGridDictionary } from './dictionary/gridDictionary.js';
+import { lookupWord } from './dictionary/dictionaryApi.js';
 import { resolveSessionId, updateSession } from './session/sessionStore.js';
 
 const SESSION_COOKIE = 'marioggle_session';
@@ -20,8 +21,8 @@ function getCorsOrigins(): string[] | boolean {
   return raw.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
-export async function registerRoutes(app: FastifyInstance) {
-  // Accept empty JSON bodies (e.g. POST /api/session with Content-Type but no payload)
+/** Plugins and parsers — must run before listen(). */
+export async function configureApp(app: FastifyInstance) {
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
     try {
       const text = (body as string)?.trim() ?? '';
@@ -45,7 +46,9 @@ export async function registerRoutes(app: FastifyInstance) {
       return reply.status(503).send({ code: 'MAINTENANCE', message: 'Under maintenance' });
     }
   });
+}
 
+export async function registerRoutes(app: FastifyInstance) {
   function getSessionFromRequest(req: {
     headers: Record<string, string | string[] | undefined>;
     cookies: Record<string, string | undefined>;
@@ -78,13 +81,6 @@ export async function registerRoutes(app: FastifyInstance) {
     attachSessionHeader(reply, sessionId);
     const body = req.body as { displayName: string; difficulty: string; durationSeconds: number };
 
-    if (!isDictionaryLoaded()) {
-      return reply.status(503).send({
-        code: isDictionaryLoading() ? 'DICTIONARY_LOADING' : 'DICTIONARY_UNAVAILABLE',
-        message: 'Dictionary is still loading. Please retry in a few seconds.',
-      });
-    }
-
     const gameManager = await getGameManager();
 
     if (!gameManager.canStartGame()) {
@@ -92,7 +88,7 @@ export async function registerRoutes(app: FastifyInstance) {
     }
 
     try {
-      const dictionary = loadDictionary();
+      const dictionary = getGridDictionary();
       const game = gameManager.createSoloGame({
         sessionId,
         displayName: body.displayName,
@@ -139,14 +135,14 @@ export async function registerRoutes(app: FastifyInstance) {
     const body = req.body as { path: number[]; idempotencyKey: string };
 
     try {
-      const dictionary = loadDictionary();
       const gameManager = await getGameManager();
-      const result = gameManager.handleSubmit(
+      const result = await gameManager.handleSubmitAsync(
         gameId,
         sessionId,
         body.path,
         body.idempotencyKey,
-        dictionary,
+        getGridDictionary(),
+        lookupWord,
       );
       return result;
     } catch (e) {

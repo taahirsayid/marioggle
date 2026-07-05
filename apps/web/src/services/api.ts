@@ -71,12 +71,7 @@ export async function wakeServer(maxAttempts = 12): Promise<boolean> {
       const res = await fetch(`${API_BASE}/api/health`, {
         headers: getSessionId() ? { 'X-Session-Id': getSessionId()! } : {},
       });
-      if (res.ok) {
-        const data = (await res.json()) as { dictionary?: boolean; dictionaryLoading?: boolean };
-        if (data.dictionary) return true;
-        // Server is up (status starting or ready) — routes work; dictionary may still load
-        if (data.status === 'starting' || data.status === 'ready' || data.ok) return true;
-      }
+      if (res.ok) return true;
     } catch {
       // server waking or spinning up
     }

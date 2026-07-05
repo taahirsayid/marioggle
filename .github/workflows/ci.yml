@@ -16,7 +16,6 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm install --include=dev
-      - run: npm run build:dictionary
       - run: npm run build -w @marioggle/shared
       - run: npm run build -w @marioggle/engine
       - run: npm test
@@ -31,7 +30,6 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm install --include=dev
-      - run: npm run build:dictionary
       - run: npm run build -w @marioggle/shared
       - run: npm run build -w @marioggle/web
         env:

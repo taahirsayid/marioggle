@@ -12,6 +12,7 @@ import type { WordDictionary } from '@marioggle/engine';
 import {
   generateQualifiedGrid,
   submitWord,
+  submitWordAsync,
   type SolutionWord,
 } from '@marioggle/engine';
 
@@ -337,6 +338,51 @@ export class GameManager {
       dictionary,
       activeEndsAt: game.activeEndsAt ?? 0,
       receivedAt: Date.now(),
+    });
+
+    if (result.outcome === 'accepted') {
+      participant.foundWords.add(result.word!);
+    }
+    participant.score = result.totalScore;
+    game.idempotency.set(idempotencyKey, result);
+
+    this.broadcast(gameId, 'word_result', {
+      sessionId,
+      ...result,
+    }, sessionId);
+
+    return result;
+  }
+
+  async handleSubmitAsync(
+    gameId: string,
+    sessionId: string,
+    path: number[],
+    idempotencyKey: string,
+    gridDictionary: WordDictionary,
+    lookupWord: (word: string) => Promise<boolean>,
+  ) {
+    const game = this.games.get(gameId);
+    if (!game) throw new Error('NOT_FOUND');
+    if (game.status !== 'active') throw new Error('INVALID_STATE');
+
+    if (game.idempotency.has(idempotencyKey)) {
+      return game.idempotency.get(idempotencyKey);
+    }
+
+    const participant = game.participants.get(sessionId);
+    if (!participant || participant.role !== 'human') throw new Error('INVALID_STATE');
+    if (participant.connectionStatus === 'removed') throw new Error('INVALID_STATE');
+
+    const result = await submitWordAsync({
+      grid: game.grid,
+      path,
+      foundWords: participant.foundWords,
+      currentScore: participant.score,
+      dictionary: gridDictionary,
+      activeEndsAt: game.activeEndsAt ?? 0,
+      receivedAt: Date.now(),
+      lookupWord,
     });
 
     if (result.outcome === 'accepted') {

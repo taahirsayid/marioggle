@@ -12,7 +12,7 @@ Create a **Web Service** from this repo (Render reads `render.yaml`).
 | `CORS_ORIGIN` | `https://taahirsayid.github.io` | Allows GitHub Pages frontend |
 | `PORT` | *(set by Render)* | Do **not** set manually |
 
-Render will also run `npm run build:dictionary` which loads **WordNet** from the `wordnet-db` npm package.
+Word validation uses [Free Dictionary API](https://dictionaryapi.dev/) at runtime — no WordNet build step.
 
 ### Render service settings
 
@@ -20,15 +20,15 @@ Render will also run `npm run build:dictionary` which loads **WordNet** from the
 - **Runtime:** Node
 - **Build command:**
   ```
-  npm install --include=dev && npm run build:dictionary && npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/server
+  npm install --include=dev && npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/server
   ```
 - **Start command:**
   ```
   node apps/server/dist/index.js
   ```
-- **Health check path:** `/` (or `/api/health` — both respond immediately on startup)
+- **Health check path:** `/`
 
-After deploy, copy your service URL (e.g. `https://marioggle-api.onrender.com`).
+After deploy, copy your **exact** service URL from the Render dashboard (e.g. `https://marioggle.onrender.com` or `https://marioggle-api.onrender.com`).
 
 ---
 
@@ -40,9 +40,9 @@ After deploy, copy your service URL (e.g. `https://marioggle-api.onrender.com`).
 
 | Secret | Example value |
 |--------|---------------|
-| `VITE_API_URL` | `https://marioggle-api.onrender.com` |
+| `VITE_API_URL` | `https://marioggle.onrender.com` |
 
-No trailing slash. Re-run **Deploy GitHub Pages** workflow after adding this secret.
+**Important:** `VITE_API_URL` must match your actual Render service URL exactly (no trailing slash). Re-run **Deploy GitHub Pages** after changing this secret.
 
 ### GitHub Pages
 

@@ -102,6 +102,97 @@ export function submitWord(input: SubmitWordInput): SubmitWordResult {
   };
 }
 
+export async function submitWordAsync(
+  input: SubmitWordInput & { lookupWord: (word: string) => Promise<boolean> },
+): Promise<SubmitWordResult> {
+  const {
+    grid,
+    path,
+    foundWords,
+    currentScore,
+    dictionary,
+    activeEndsAt,
+    receivedAt,
+    lookupWord,
+  } = input;
+
+  if (receivedAt > activeEndsAt) {
+    return {
+      outcome: 'rejected_late',
+      pointsDelta: 0,
+      totalScore: currentScore,
+      message: 'Invalid word',
+    };
+  }
+
+  const pathResult = validatePath(path);
+  if (!pathResult.valid) {
+    const totalScore = applyInvalidPenalty(currentScore);
+    return {
+      outcome: 'invalid',
+      pointsDelta: totalScore - currentScore,
+      totalScore,
+      message: 'Invalid word',
+    };
+  }
+
+  const word = wordFromPath(grid, path);
+  const letterCount = letterCountFromPath(grid, path);
+
+  if (letterCount < MIN_WORD_LENGTH) {
+    const totalScore = applyInvalidPenalty(currentScore);
+    return {
+      outcome: 'invalid',
+      word,
+      pointsDelta: totalScore - currentScore,
+      totalScore,
+      message: 'Invalid word',
+    };
+  }
+
+  if (foundWords.has(word)) {
+    return {
+      outcome: 'duplicate',
+      word,
+      pointsDelta: 0,
+      totalScore: currentScore,
+      message: 'Already found',
+    };
+  }
+
+  if (dictionary.isOffensive(word)) {
+    const totalScore = applyInvalidPenalty(currentScore);
+    return {
+      outcome: 'invalid',
+      word,
+      pointsDelta: totalScore - currentScore,
+      totalScore,
+      message: 'Invalid word',
+    };
+  }
+
+  const valid = await lookupWord(word);
+  if (!valid) {
+    const totalScore = applyInvalidPenalty(currentScore);
+    return {
+      outcome: 'invalid',
+      word,
+      pointsDelta: totalScore - currentScore,
+      totalScore,
+      message: 'Invalid word',
+    };
+  }
+
+  const points = scoreForWordLength(letterCount);
+  return {
+    outcome: 'accepted',
+    word,
+    pointsDelta: points,
+    totalScore: currentScore + points,
+    message: 'Valid word',
+  };
+}
+
 export function outcomeMessage(outcome: WordOutcome): string {
   switch (outcome) {
     case 'duplicate':

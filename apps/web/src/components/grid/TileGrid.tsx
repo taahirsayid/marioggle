@@ -15,9 +15,19 @@ function areAdjacent(a: number, b: number): boolean {
   return Math.abs(row(a) - row(b)) <= 1 && Math.abs(col(a) - col(b)) <= 1 && a !== b;
 }
 
+function tileIndexFromPoint(clientX: number, clientY: number): number | null {
+  const el = document.elementFromPoint(clientX, clientY);
+  const tileEl = el?.closest('[data-tile-index]');
+  if (!tileEl) return null;
+  const index = Number(tileEl.getAttribute('data-tile-index'));
+  return Number.isFinite(index) ? index : null;
+}
+
 export function TileGrid({ grid, disabled, onSubmit, onSelectionChange }: Props) {
   const [path, setPath] = useState<number[]>([]);
   const isDragging = useRef(false);
+  const pointerMoved = useRef(false);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const updatePath = useCallback(
     (next: number[]) => {
@@ -27,48 +37,74 @@ export function TileGrid({ grid, disabled, onSubmit, onSelectionChange }: Props)
     [onSelectionChange],
   );
 
-  const tryExtend = (index: number) => {
-    if (disabled) return;
-    setPath((prev) => {
-      if (prev.length === 0) {
-        const next = [index];
+  const tryExtend = useCallback(
+    (index: number) => {
+      if (disabled) return;
+      setPath((prev) => {
+        if (prev.length === 0) {
+          const next = [index];
+          onSelectionChange?.(next);
+          return next;
+        }
+        const last = prev[prev.length - 1];
+        if (index === last && prev.length > 1) {
+          const next = prev.slice(0, -1);
+          onSelectionChange?.(next);
+          return next;
+        }
+        if (prev.includes(index)) return prev;
+        if (!areAdjacent(last, index)) return prev;
+        const next = [...prev, index];
         onSelectionChange?.(next);
         return next;
-      }
-      const last = prev[prev.length - 1];
-      if (index === last && prev.length > 1) {
-        const next = prev.slice(0, -1);
-        onSelectionChange?.(next);
-        return next;
-      }
-      if (prev.includes(index)) return prev;
-      if (!areAdjacent(last, index)) return prev;
-      const next = [...prev, index];
-      onSelectionChange?.(next);
-      return next;
-    });
-  };
+      });
+    },
+    [disabled, onSelectionChange],
+  );
 
-  const handlePointerDown = (index: number) => {
+  const finishDrag = useCallback(() => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    setPath((currentPath) => {
+      if (currentPath.length >= 1) {
+        onSubmit(currentPath);
+        onSelectionChange?.([]);
+      }
+      return [];
+    });
+  }, [onSubmit, onSelectionChange]);
+
+  const handlePointerDown = (e: React.PointerEvent, index: number) => {
+    if (disabled) return;
+    e.preventDefault();
     isDragging.current = true;
+    pointerMoved.current = false;
+    gridRef.current?.setPointerCapture(e.pointerId);
     updatePath([index]);
   };
 
-  const handlePointerEnter = (index: number) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging.current || disabled) return;
-    tryExtend(index);
-  };
-
-  const handlePointerUp = () => {
-    if (!isDragging.current) return;
-    isDragging.current = false;
-    if (path.length >= 1) {
-      onSubmit(path);
-      updatePath([]);
+    pointerMoved.current = true;
+    const index = tileIndexFromPoint(e.clientX, e.clientY);
+    if (index !== null) {
+      tryExtend(index);
     }
   };
 
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (gridRef.current?.hasPointerCapture(e.pointerId)) {
+      gridRef.current.releasePointerCapture(e.pointerId);
+    }
+    finishDrag();
+  };
+
   const handleClick = (index: number) => {
+    // After a swipe, mobile browsers fire a synthetic click — ignore it.
+    if (pointerMoved.current) {
+      pointerMoved.current = false;
+      return;
+    }
     if (disabled) return;
     setPath((prev) => {
       if (prev.length > 0 && prev[prev.length - 1] === index) {
@@ -100,15 +136,20 @@ export function TileGrid({ grid, disabled, onSubmit, onSelectionChange }: Props)
   const currentWord = path.map((i) => grid[i]?.display ?? '').join('');
 
   return (
-    <div
-      className={styles.wrapper}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
-    >
+    <div className={styles.wrapper}>
       <div className={styles.wordPreview} aria-live="polite">
         {currentWord || '\u00A0'}
       </div>
-      <div className={styles.grid} role="grid" aria-label="Letter grid">
+      <div
+        ref={gridRef}
+        className={styles.grid}
+        role="grid"
+        aria-label="Letter grid"
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+      >
         {grid.map((tile) => {
           const selected = path.includes(tile.index);
           const order = path.indexOf(tile.index);
@@ -116,15 +157,12 @@ export function TileGrid({ grid, disabled, onSubmit, onSelectionChange }: Props)
             <button
               key={tile.index}
               type="button"
+              data-tile-index={tile.index}
               className={`${styles.tile} ${selected ? styles.selected : ''}`}
               role="gridcell"
               aria-selected={selected}
               aria-label={`Tile ${tile.display}${selected ? `, position ${order + 1} in word` : ''}`}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                handlePointerDown(tile.index);
-              }}
-              onPointerEnter={() => handlePointerEnter(tile.index)}
+              onPointerDown={(e) => handlePointerDown(e, tile.index)}
               onClick={() => handleClick(tile.index)}
               disabled={disabled}
             >

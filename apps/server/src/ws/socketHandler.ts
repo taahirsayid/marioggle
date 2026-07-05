@@ -53,7 +53,7 @@ export async function attachSocketHandlers(io: Server) {
       socket.emit('room_state', roomManager.toResponse(room, baseUrl));
     });
 
-    socket.on('start_game', ({ roomId }: { roomId: string }) => {
+    socket.on('start_game', async ({ roomId }: { roomId: string }) => {
       const room = roomManager.getRoom(roomId);
       if (!room) {
         socket.emit('error', { code: 'ROOM_NOT_FOUND', message: 'Room not found' });
@@ -75,7 +75,7 @@ export async function attachSocketHandlers(io: Server) {
           displayName: p.displayName,
           visualId: p.visualId,
         }));
-        const game = gameManager.createMultiplayerGame(roomId, {
+        const game = await gameManager.createMultiplayerGameAsync(roomId, {
           hostSessionId: room.hostSessionId,
           durationSeconds: room.durationSeconds,
           dictionary,

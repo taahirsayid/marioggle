@@ -81,6 +81,31 @@ export function generateGrid(seed: number, dictionary: Dictionary): GeneratedGri
   return { tiles, seed, solutions };
 }
 
+export async function generateQualifiedGridAsync(
+  seed: number,
+  dictionary: Dictionary,
+): Promise<GeneratedGrid> {
+  let tiles: Tile[] = [];
+  let solutions: ReturnType<typeof findAllSolutionWords> = [];
+
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const attemptSeed = seed + attempt;
+    const attemptRng = mulberry32(attemptSeed);
+    tiles = Array.from({ length: 25 }, (_, index) => {
+      const pick = WEIGHTED_BAG[Math.floor(attemptRng() * WEIGHTED_BAG.length)];
+      return { index, display: pick.token, letterCount: pick.letterCount };
+    });
+    solutions = findAllSolutionWords(tiles, dictionary);
+    if (gridQualifies(solutions)) {
+      return { tiles, seed: attemptSeed, solutions };
+    }
+    // Yield so health checks and other requests are not starved on free-tier CPUs.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+
+  return { tiles, seed, solutions };
+}
+
 export function generateQualifiedGrid(
   seed: number,
   dictionary: Dictionary,

@@ -7,7 +7,7 @@ services:
     region: singapore
     buildCommand: npm install --include=dev && npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/server
     startCommand: node apps/server/dist/index.js
-    healthCheckPath: /
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production

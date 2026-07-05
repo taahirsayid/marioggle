@@ -11,6 +11,7 @@ import {
 import type { WordDictionary } from '@marioggle/engine';
 import {
   generateQualifiedGrid,
+  generateQualifiedGridAsync,
   submitWord,
   submitWordAsync,
   type SolutionWord,
@@ -95,6 +96,27 @@ export class GameManager {
 
     const seed = Math.floor(Math.random() * 1_000_000_000);
     const { tiles, solutions, seed: gridSeed } = generateQualifiedGrid(seed, input.dictionary);
+    return this.buildSoloGame(input, { tiles, solutions, gridSeed });
+  }
+
+  async createSoloGameAsync(input: CreateSoloInput): Promise<ActiveGame> {
+    if (!this.canStartGame()) {
+      throw new Error('CAPACITY_FULL');
+    }
+
+    const seed = Math.floor(Math.random() * 1_000_000_000);
+    const { tiles, solutions, seed: gridSeed } = await generateQualifiedGridAsync(seed, input.dictionary);
+    return this.buildSoloGame(input, { tiles, solutions, gridSeed });
+  }
+
+  private buildSoloGame(
+    input: CreateSoloInput,
+    grid: { tiles: Tile[]; solutions: SolutionWord[]; gridSeed: number },
+  ): ActiveGame {
+    if (!this.canStartGame()) {
+      throw new Error('CAPACITY_FULL');
+    }
+
     const gameId = randomUUID();
     const now = Date.now();
 
@@ -123,9 +145,9 @@ export class GameManager {
       id: gameId,
       mode: 'solo',
       status: 'countdown',
-      grid: tiles,
-      solutions,
-      seed: gridSeed,
+      grid: grid.tiles,
+      solutions: grid.solutions,
+      seed: grid.gridSeed,
       durationSeconds: input.durationSeconds || DEFAULT_DURATION_SECONDS,
       countdownEndsAt: now + COUNTDOWN_MS,
       activeEndsAt: null,
@@ -148,6 +170,16 @@ export class GameManager {
     return game;
   }
 
+  async createMultiplayerGameAsync(roomId: string, input: CreateMultiplayerInput): Promise<ActiveGame> {
+    if (!this.canStartGame()) {
+      throw new Error('CAPACITY_FULL');
+    }
+
+    const seed = Math.floor(Math.random() * 1_000_000_000);
+    const { tiles, solutions, seed: gridSeed } = await generateQualifiedGridAsync(seed, input.dictionary);
+    return this.buildMultiplayerGame(roomId, input, { tiles, solutions, gridSeed });
+  }
+
   createMultiplayerGame(roomId: string, input: CreateMultiplayerInput): ActiveGame {
     if (!this.canStartGame()) {
       throw new Error('CAPACITY_FULL');
@@ -155,6 +187,14 @@ export class GameManager {
 
     const seed = Math.floor(Math.random() * 1_000_000_000);
     const { tiles, solutions, seed: gridSeed } = generateQualifiedGrid(seed, input.dictionary);
+    return this.buildMultiplayerGame(roomId, input, { tiles, solutions, gridSeed });
+  }
+
+  private buildMultiplayerGame(
+    roomId: string,
+    input: CreateMultiplayerInput,
+    grid: { tiles: Tile[]; solutions: SolutionWord[]; gridSeed: number },
+  ): ActiveGame {
     const gameId = randomUUID();
     const now = Date.now();
 
@@ -175,9 +215,9 @@ export class GameManager {
       id: gameId,
       mode: 'multiplayer',
       status: 'countdown',
-      grid: tiles,
-      solutions,
-      seed: gridSeed,
+      grid: grid.tiles,
+      solutions: grid.solutions,
+      seed: grid.gridSeed,
       durationSeconds: input.durationSeconds || DEFAULT_DURATION_SECONDS,
       countdownEndsAt: now + COUNTDOWN_MS,
       activeEndsAt: null,

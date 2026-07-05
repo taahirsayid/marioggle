@@ -33,7 +33,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
     method,
     body,
     headers,
@@ -70,11 +69,15 @@ export async function wakeServer(maxAttempts = 8): Promise<boolean> {
 
 export const api = {
   ensureSession: async () => {
-    const data = await request<{ sessionId: string }>('/api/session', { method: 'POST' });
+    const data = await request<{ sessionId: string }>('/api/session', {
+      method: 'POST',
+      body: '{}',
+    });
     setSessionId(data.sessionId);
     return data;
   },
-  getSocketToken: () => request<{ token: string }>('/api/session/socket-token', { method: 'POST' }),
+  getSocketToken: () =>
+    request<{ token: string }>('/api/session/socket-token', { method: 'POST', body: '{}' }),
   startSoloGame: (body: { displayName: string; difficulty: string; durationSeconds: number }) =>
     request<{ gameId: string }>('/api/solo/games', { method: 'POST', body: JSON.stringify(body) }),
   getGameState: (gameId: string) => request<GameStateResponse>(`/api/games/${gameId}`),

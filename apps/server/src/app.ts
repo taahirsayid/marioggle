@@ -1,7 +1,6 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
-import { randomUUID } from 'node:crypto';
 import { gameManager } from './game/gameManager.js';
 import { roomManager } from './room/roomManager.js';
 import { loadDictionary, isDictionaryAvailable } from './dictionary/loader.js';
@@ -23,6 +22,16 @@ function getCorsOrigins(): string[] | boolean {
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
+
+  // Accept empty JSON bodies (e.g. POST /api/session with Content-Type but no payload)
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    try {
+      const text = (body as string)?.trim() ?? '';
+      done(null, text.length > 0 ? JSON.parse(text) : {});
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
 
   await app.register(cors, {
     origin: getCorsOrigins(),

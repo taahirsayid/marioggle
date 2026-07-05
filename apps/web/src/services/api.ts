@@ -20,13 +20,23 @@ async function parseError(res: Response): Promise<string> {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const sessionId = getSessionId();
+  const method = (options?.method ?? 'GET').toUpperCase();
+  const sendsJson = method === 'POST' || method === 'PUT' || method === 'PATCH';
+  const body = sendsJson && !options?.body ? '{}' : options?.body;
+
+  const headers: Record<string, string> = {
+    ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
+    ...(options?.headers as Record<string, string> | undefined),
+  };
+  if (body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
-      ...options?.headers,
-    },
+    method,
+    body,
+    headers,
   });
 
   const newSession = res.headers.get('X-Session-Id');

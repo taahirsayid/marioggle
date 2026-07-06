@@ -398,6 +398,7 @@ export class GameManager {
       sessionId,
       ...result,
     }, sessionId);
+    this.emitGameState(gameId);
 
     return result;
   }
@@ -443,6 +444,7 @@ export class GameManager {
       sessionId,
       ...result,
     }, sessionId);
+    this.emitGameState(gameId);
 
     return result;
   }
@@ -451,12 +453,25 @@ export class GameManager {
     const human = game.participants.get(sessionId);
     const now = Date.now();
     const showGrid = game.status !== 'countdown';
+    const players =
+      game.mode === 'multiplayer'
+        ? [...game.participants.values()]
+            .filter((p) => p.role === 'human')
+            .map((p) => ({
+              sessionId: p.sessionId,
+              displayName: p.displayName,
+              score: p.score,
+              visualId: p.visualId,
+            }))
+            .sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName))
+        : undefined;
     return {
       gameId: game.id,
       mode: game.mode,
       status: game.status,
       grid: showGrid ? game.grid : [],
       score: human?.score ?? 0,
+      players,
       activeEndsAt: game.activeEndsAt,
       countdownEndsAt: game.countdownEndsAt,
       serverNow: now,

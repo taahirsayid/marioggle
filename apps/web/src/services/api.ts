@@ -111,12 +111,20 @@ export const api = {
 
 export type TileDto = { index: number; display: string; letterCount: number };
 
+export type PlayerScoreDto = {
+  sessionId: string;
+  displayName: string;
+  score: number;
+  visualId: number;
+};
+
 export type GameStateResponse = {
   gameId: string;
   mode?: string;
   status: string;
   grid: TileDto[];
   score: number;
+  players?: PlayerScoreDto[];
   activeEndsAt: number | null;
   countdownEndsAt: number | null;
   serverNow: number;

@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TileGrid } from '../components/grid/TileGrid';
 import { api, type GameStateResponse, getSessionId } from '../services/api';
+
+const VISUAL_CLASSES = ['', 'player-blue', 'player-green', 'player-yellow', 'player-orange', 'player-purple', 'player-pink'];
 import { getSocket, reconnectSocket } from '../services/socket';
 import { useSound } from '../hooks/useSound';
 
@@ -80,12 +82,25 @@ export function GamePage() {
       );
       play('countdown');
     });
-    socket.on('word_result', (result: { message: string; outcome: string; totalScore: number }) => {
+    socket.on('word_result', (result: { message: string; outcome: string; totalScore: number; sessionId?: string }) => {
       setFeedback({ message: result.message, type: result.outcome });
       if (result.outcome === 'accepted') play('valid');
       else if (result.outcome === 'duplicate') play('duplicate');
       else play('invalid');
-      setState((prev) => (prev ? { ...prev, score: result.totalScore } : prev));
+      const sid = result.sessionId ?? sessionId;
+      setState((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        if (sid === sessionId) {
+          next.score = result.totalScore;
+        }
+        if (prev.players && sid) {
+          next.players = prev.players.map((p) =>
+            p.sessionId === sid ? { ...p, score: result.totalScore } : p,
+          );
+        }
+        return next;
+      });
     });
     socket.on('round_ended', () => navigate(`/results/${gameId}`));
 
@@ -148,9 +163,24 @@ export function GamePage() {
         {active && timeLeft !== null && `${timeLeft}s remaining`}
         {!countdown && !active && state.status}
       </div>
-      <div className="row" style={{ justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <span>Score: <strong>{state.score}</strong></span>
-      </div>
+      {state.mode === 'multiplayer' && state.players && state.players.length > 0 ? (
+        <ul className="scoreboard" aria-label="Player scores">
+          {state.players.map((p) => {
+            const isYou = p.sessionId === getSessionId();
+            return (
+              <li key={p.sessionId} className={isYou ? 'scoreboard-row scoreboard-you' : 'scoreboard-row'}>
+                <span className={`player-badge ${VISUAL_CLASSES[p.visualId] ?? ''}`} aria-hidden="true">●</span>
+                <span className="scoreboard-name">{p.displayName}{isYou ? ' (you)' : ''}</span>
+                <strong className="scoreboard-score">{p.score}</strong>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <div className="row" style={{ justifyContent: 'space-between', marginBottom: '1rem' }}>
+          <span>Score: <strong>{state.score}</strong></span>
+        </div>
+      )}
       {feedback && (
         <div className={`feedback ${feedback.type}`}>{feedback.message}</div>
       )}

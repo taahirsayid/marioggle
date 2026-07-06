@@ -1,11 +1,30 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TileGrid } from '../components/grid/TileGrid';
-import { api, type GameStateResponse, getSessionId } from '../services/api';
+import { api, type GameStateResponse, type WordResultResponse, getSessionId } from '../services/api';
+import { reconnectSocket } from '../services/socket';
+import { useSound } from '../hooks/useSound';
 
 const VISUAL_CLASSES = ['', 'player-blue', 'player-green', 'player-yellow', 'player-orange', 'player-purple', 'player-pink'];
-import { getSocket, reconnectSocket } from '../services/socket';
-import { useSound } from '../hooks/useSound';
+
+function applyWordResultToState(
+  prev: GameStateResponse,
+  result: WordResultResponse,
+  actorSessionId: string | null,
+): GameStateResponse {
+  const myId = getSessionId();
+  const actor = actorSessionId ?? myId;
+  const next = { ...prev, score: prev.score };
+  if (actor && actor === myId) {
+    next.score = result.totalScore;
+  }
+  if (prev.players && actor) {
+    next.players = prev.players.map((p) =>
+      p.sessionId === actor ? { ...p, score: result.totalScore } : p,
+    );
+  }
+  return next;
+}
 
 export function GamePage() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -42,6 +61,19 @@ export function GamePage() {
     }
   }, [gameId, navigate, syncTimer]);
 
+  const showWordResult = useCallback(
+    (result: WordResultResponse, actorSessionId?: string) => {
+      setFeedback({ message: result.message, type: result.outcome });
+      if (result.outcome === 'accepted') play('valid');
+      else if (result.outcome === 'duplicate') play('duplicate');
+      else play('invalid');
+      setState((prev) =>
+        prev ? applyWordResultToState(prev, result, actorSessionId ?? getSessionId()) : prev,
+      );
+    },
+    [play],
+  );
+
   const poll = useCallback(async () => {
     if (!gameId) return;
     try {
@@ -60,57 +92,60 @@ export function GamePage() {
 
   useEffect(() => {
     if (!gameId) return;
-    const sessionId = getSessionId();
-    if (!sessionId) return;
 
-    const socket = reconnectSocket(sessionId);
-    socket.emit('join_game', { gameId });
+    let socket: ReturnType<typeof reconnectSocket> | null = null;
+    let cancelled = false;
 
-    socket.on('game_state', (s: GameStateResponse) => applyState(s));
-    socket.on('round_started', (payload: { grid: GameStateResponse['grid']; activeEndsAt: number; serverNow: number }) => {
-      setState((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: 'active',
-              grid: payload.grid,
-              activeEndsAt: payload.activeEndsAt,
-              countdownEndsAt: null,
-              serverNow: payload.serverNow,
-            }
-          : prev,
-      );
-      play('countdown');
-    });
-    socket.on('word_result', (result: { message: string; outcome: string; totalScore: number; sessionId?: string }) => {
-      setFeedback({ message: result.message, type: result.outcome });
-      if (result.outcome === 'accepted') play('valid');
-      else if (result.outcome === 'duplicate') play('duplicate');
-      else play('invalid');
-      const sid = result.sessionId ?? sessionId;
-      setState((prev) => {
-        if (!prev) return prev;
-        const next = { ...prev };
-        if (sid === sessionId) {
-          next.score = result.totalScore;
-        }
-        if (prev.players && sid) {
-          next.players = prev.players.map((p) =>
-            p.sessionId === sid ? { ...p, score: result.totalScore } : p,
+    (async () => {
+      try {
+        const { sessionId } = await api.ensureSession();
+        if (cancelled) return;
+
+        socket = reconnectSocket(sessionId);
+        socket.emit('join_game', { gameId });
+
+        socket.on('game_state', (s: GameStateResponse) => applyState(s));
+        socket.on('round_started', (payload: { grid: GameStateResponse['grid']; activeEndsAt: number; serverNow: number }) => {
+          setState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: 'active',
+                  grid: payload.grid,
+                  activeEndsAt: payload.activeEndsAt,
+                  countdownEndsAt: null,
+                  serverNow: payload.serverNow,
+                }
+              : prev,
           );
+          play('countdown');
+        });
+        socket.on(
+          'word_result',
+          (result: WordResultResponse & { sessionId?: string }) => {
+            const actor = result.sessionId ?? null;
+            if (actor && actor === getSessionId()) return;
+            showWordResult(result, actor);
+          },
+        );
+        socket.on('round_ended', () => navigate(`/results/${gameId}`));
+      } catch {
+        if (!cancelled) {
+          setFeedback({ message: 'Could not connect to live game updates', type: 'invalid' });
         }
-        return next;
-      });
-    });
-    socket.on('round_ended', () => navigate(`/results/${gameId}`));
+      }
+    })();
 
     return () => {
-      socket.off('game_state');
-      socket.off('round_started');
-      socket.off('word_result');
-      socket.off('round_ended');
+      cancelled = true;
+      if (socket) {
+        socket.off('game_state');
+        socket.off('round_started');
+        socket.off('word_result');
+        socket.off('round_ended');
+      }
     };
-  }, [gameId, applyState, navigate, play]);
+  }, [gameId, applyState, navigate, play, showWordResult]);
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -126,18 +161,9 @@ export function GamePage() {
     if (!gameId || !state || state.status !== 'active') return;
     const key = `${Date.now()}-${path.join('-')}`;
 
-    if (state.mode === 'multiplayer') {
-      getSocket().emit('submit_word', { gameId, path, idempotencyKey: key });
-      return;
-    }
-
     try {
       const result = await api.submitWord(gameId, path, key);
-      setFeedback({ message: result.message, type: result.outcome });
-      if (result.outcome === 'accepted') play('valid');
-      else if (result.outcome === 'duplicate') play('duplicate');
-      else play('invalid');
-      setState((prev) => (prev ? { ...prev, score: result.totalScore } : prev));
+      showWordResult(result);
     } catch {
       setFeedback({ message: 'Submit failed', type: 'invalid' });
     }
@@ -155,6 +181,7 @@ export function GamePage() {
   const countdown = state.status === 'countdown';
   const timerClass =
     timeLeft !== null && timeLeft <= 10 ? 'timer-bar warning' : 'timer-bar';
+  const mySessionId = getSessionId();
 
   return (
     <div className="page">
@@ -166,7 +193,7 @@ export function GamePage() {
       {state.mode === 'multiplayer' && state.players && state.players.length > 0 ? (
         <ul className="scoreboard" aria-label="Player scores">
           {state.players.map((p) => {
-            const isYou = p.sessionId === getSessionId();
+            const isYou = p.sessionId === mySessionId;
             return (
               <li key={p.sessionId} className={isYou ? 'scoreboard-row scoreboard-you' : 'scoreboard-row'}>
                 <span className={`player-badge ${VISUAL_CLASSES[p.visualId] ?? ''}`} aria-hidden="true">●</span>

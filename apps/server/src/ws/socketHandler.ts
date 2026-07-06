@@ -3,6 +3,7 @@ import { getGameManager } from '../lazyServices.js';
 import { roomManager } from '../room/roomManager.js';
 import { getGridDictionary } from '../dictionary/gridDictionary.js';
 import { lookupWord } from '../dictionary/dictionaryApi.js';
+import { updateSession } from '../session/sessionStore.js';
 import { canStartRoom, connectedPlayers } from '../room/roomHelpers.js';
 
 const socketSessions = new Map<string, string>();
@@ -41,6 +42,7 @@ export async function attachSocketHandlers(io: Server) {
 
     socketSessions.set(socket.id, sessionId);
     sessionSockets.set(sessionId, socket.id);
+    updateSession(sessionId, {});
 
     socket.on('join_room', ({ roomId }: { roomId: string }) => {
       const room = roomManager.getRoom(roomId);

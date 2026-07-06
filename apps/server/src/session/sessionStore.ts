@@ -12,7 +12,10 @@ export function resolveSessionId(
   cookieSessionId: string | undefined,
 ): string {
   const candidate = headerSessionId ?? cookieSessionId;
-  if (candidate && sessions.has(candidate)) {
+  if (candidate) {
+    if (!sessions.has(candidate)) {
+      sessions.set(candidate, { createdAt: Date.now() });
+    }
     return candidate;
   }
   const sessionId = randomUUID();

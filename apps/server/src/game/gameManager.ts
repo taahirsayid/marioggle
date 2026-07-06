@@ -397,7 +397,7 @@ export class GameManager {
     this.broadcast(gameId, 'word_result', {
       sessionId,
       ...result,
-    }, sessionId);
+    });
     this.emitGameState(gameId);
 
     return result;
@@ -443,7 +443,7 @@ export class GameManager {
     this.broadcast(gameId, 'word_result', {
       sessionId,
       ...result,
-    }, sessionId);
+    });
     this.emitGameState(gameId);
 
     return result;

@@ -15,6 +15,23 @@ function areAdjacent(a: number, b: number): boolean {
   return Math.abs(row(a) - row(b)) <= 1 && Math.abs(col(a) - col(b)) <= 1 && a !== b;
 }
 
+function getAdjacentIndices(index: number): number[] {
+  const row = Math.floor(index / 5);
+  const col = index % 5;
+  const neighbors: number[] = [];
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const r = row + dr;
+      const c = col + dc;
+      if (r >= 0 && r < 5 && c >= 0 && c < 5) {
+        neighbors.push(r * 5 + c);
+      }
+    }
+  }
+  return neighbors;
+}
+
 export function TileGrid({ grid, disabled, onSubmit, onSelectionChange }: Props) {
   const [path, setPath] = useState<number[]>([]);
   const [isDraggingUi, setIsDraggingUi] = useState(false);
@@ -23,7 +40,7 @@ export function TileGrid({ grid, disabled, onSubmit, onSelectionChange }: Props)
   const pointerMoved = useRef(false);
   const touchActive = useRef(false);
   const pathRef = useRef<number[]>([]);
-  const lastHoverIndex = useRef<number | null>(null);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const tileRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -42,53 +59,96 @@ export function TileGrid({ grid, disabled, onSubmit, onSelectionChange }: Props)
     onSelectionChangeRef.current?.(next);
   }, []);
 
-  /** Nearest tile center — stable across gaps and unaffected by selected-tile styling. */
-  const tileIndexFromPoint = useCallback((clientX: number, clientY: number): number | null => {
+  /** Map touch position to grid cell (includes gaps — reliable for diagonal swipes). */
+  const cellFromPoint = useCallback((clientX: number, clientY: number): number | null => {
     const gridEl = gridRef.current;
     if (!gridEl) return null;
 
-    const gridRect = gridEl.getBoundingClientRect();
-    const cellSize = Math.min(gridRect.width, gridRect.height) / 5;
-    const maxDistSq = (cellSize * 0.72) ** 2;
+    const rect = gridEl.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    if (x < 0 || y < 0 || x >= rect.width || y >= rect.height) return null;
 
-    let best: number | null = null;
-    let bestDistSq = Infinity;
-
-    for (const [index, el] of tileRefs.current) {
-      const rect = el.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dx = clientX - cx;
-      const dy = clientY - cy;
-      const distSq = dx * dx + dy * dy;
-      if (distSq < bestDistSq) {
-        bestDistSq = distSq;
-        best = index;
-      }
-    }
-
-    if (best === null || bestDistSq > maxDistSq) return null;
-    return best;
+    const col = Math.min(4, Math.max(0, Math.floor((x / rect.width) * 5)));
+    const row = Math.min(4, Math.max(0, Math.floor((y / rect.height) * 5)));
+    return row * 5 + col;
   }, []);
 
+  /**
+   * During a drag, only consider tiles adjacent to the path tip (8 directions).
+   * Uses grid-cell mapping first, then nearest-neighbor fallback for corner gaps.
+   */
+  const pickDragTarget = useCallback(
+    (clientX: number, clientY: number): number | null => {
+      const currentPath = pathRef.current;
+      if (currentPath.length === 0) return null;
+
+      const last = currentPath[currentPath.length - 1];
+
+      const cell = cellFromPoint(clientX, clientY);
+      if (cell !== null) {
+        if (currentPath.length >= 2 && cell === currentPath[currentPath.length - 2]) {
+          return cell;
+        }
+        if (cell !== last && !currentPath.includes(cell) && areAdjacent(last, cell)) {
+          return cell;
+        }
+      }
+
+      const gridEl = gridRef.current;
+      if (!gridEl) return null;
+      const rect = gridEl.getBoundingClientRect();
+      const cellSize = Math.min(rect.width, rect.height) / 5;
+      const maxDistSq = (cellSize * 1.1) ** 2;
+
+      let best: number | null = null;
+      let bestDistSq = Infinity;
+
+      for (const index of getAdjacentIndices(last)) {
+        if (currentPath.includes(index)) continue;
+        const el = tileRefs.current.get(index);
+        if (!el) continue;
+        const tr = el.getBoundingClientRect();
+        const cx = tr.left + tr.width / 2;
+        const cy = tr.top + tr.height / 2;
+        const dx = clientX - cx;
+        const dy = clientY - cy;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < bestDistSq) {
+          bestDistSq = distSq;
+          best = index;
+        }
+      }
+
+      if (best !== null && bestDistSq <= maxDistSq) return best;
+      return null;
+    },
+    [cellFromPoint],
+  );
+
   const tryExtendDrag = useCallback(
-    (index: number) => {
-      if (disabledRef.current) return;
+    (index: number): boolean => {
+      if (disabledRef.current) return false;
 
       const prev = pathRef.current;
       if (prev.length === 0) {
         applyPath([index]);
-        return;
+        return true;
       }
 
       const last = prev[prev.length - 1];
-      if (index === last) return;
+      if (index === last) return false;
 
-      if (prev.includes(index)) return;
+      if (prev.length >= 2 && index === prev[prev.length - 2]) {
+        applyPath(prev.slice(0, -1));
+        return true;
+      }
 
-      if (!areAdjacent(last, index)) return;
+      if (prev.includes(index)) return false;
+      if (!areAdjacent(last, index)) return false;
 
       applyPath([...prev, index]);
+      return true;
     },
     [applyPath],
   );
@@ -97,7 +157,7 @@ export function TileGrid({ grid, disabled, onSubmit, onSelectionChange }: Props)
     if (!isDragging.current) return;
     isDragging.current = false;
     touchActive.current = false;
-    lastHoverIndex.current = null;
+    lastPointRef.current = null;
     setIsDraggingUi(false);
 
     const currentPath = pathRef.current;
@@ -112,7 +172,7 @@ export function TileGrid({ grid, disabled, onSubmit, onSelectionChange }: Props)
       if (disabledRef.current) return;
       isDragging.current = true;
       pointerMoved.current = false;
-      lastHoverIndex.current = index;
+      lastPointRef.current = null;
       setIsDraggingUi(true);
       applyPath([index]);
     },
@@ -124,13 +184,37 @@ export function TileGrid({ grid, disabled, onSubmit, onSelectionChange }: Props)
       if (!isDragging.current || disabledRef.current) return;
       pointerMoved.current = true;
 
-      const index = tileIndexFromPoint(clientX, clientY);
-      if (index === null || index === lastHoverIndex.current) return;
+      const gridEl = gridRef.current;
+      const lastPt = lastPointRef.current;
 
-      lastHoverIndex.current = index;
-      tryExtendDrag(index);
+      const processPoint = (x: number, y: number) => {
+        const index = pickDragTarget(x, y);
+        if (index !== null) {
+          tryExtendDrag(index);
+        }
+      };
+
+      if (lastPt && gridEl) {
+        const rect = gridEl.getBoundingClientRect();
+        const cellSize = Math.min(rect.width, rect.height) / 5;
+        const dx = clientX - lastPt.x;
+        const dy = clientY - lastPt.y;
+        const steps = Math.max(
+          Math.ceil(Math.abs(dx) / (cellSize * 0.35)),
+          Math.ceil(Math.abs(dy) / (cellSize * 0.35)),
+          1,
+        );
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          processPoint(lastPt.x + dx * t, lastPt.y + dy * t);
+        }
+      } else {
+        processPoint(clientX, clientY);
+      }
+
+      lastPointRef.current = { x: clientX, y: clientY };
     },
-    [tileIndexFromPoint, tryExtendDrag],
+    [pickDragTarget, tryExtendDrag],
   );
 
   useEffect(() => {

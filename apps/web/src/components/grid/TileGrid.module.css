@@ -39,16 +39,19 @@
   font-weight: 800;
   color: white;
   border: 3px solid transparent;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
   touch-action: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
+.grid.dragging .tile {
+  transition: none;
+}
+
 .tile.selected {
   background: var(--tile-selected);
   border-color: var(--accent);
-  transform: scale(1.05);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .letter {

@@ -11,6 +11,7 @@
   "scripts": {
     "build": "npm run build -w @marioggle/shared && npm run build -w @marioggle/engine && npm run build -w @marioggle/web && npm run build -w @marioggle/server",
     "build:web": "npm run build -w @marioggle/web",
+    "build:preset-grids": "node scripts/build-preset-grids-standalone.js",
     "dev": "concurrently \"npm run dev -w @marioggle/server\" \"npm run dev -w @marioggle/web\"",
     "test": "npm run test -w @marioggle/engine && npm run test -w @marioggle/shared",
     "build:dictionary": "node scripts/build-dictionary.mjs",

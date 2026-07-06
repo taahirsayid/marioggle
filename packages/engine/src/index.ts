@@ -5,3 +5,5 @@ export * from './gridGenerator.js';
 export * from './gridQualifier.js';
 export * from './setDictionary.js';
 export * from './trie.js';
+export * from './boggleDice.js';
+export * from './boardSelection.js';

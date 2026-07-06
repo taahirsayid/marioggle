@@ -5,6 +5,14 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const src = join(root, 'apps/server/data');
 const dest = join(root, 'apps/server/dist/data');
+const engineData = join(root, 'packages/engine/data/presetGrids.json');
+const serverPreset = join(src, 'presetGrids.json');
+
+if (existsSync(engineData) && !existsSync(serverPreset)) {
+  mkdirSync(src, { recursive: true });
+  cpSync(engineData, serverPreset);
+  console.log('Synced presetGrids.json from packages/engine/data');
+}
 
 if (!existsSync(src)) {
   console.warn('No apps/server/data folder to copy');
